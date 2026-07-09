@@ -9,6 +9,45 @@ Presentation is a big share of the hackathon score — this is a full-time role.
 A slide deck + a rehearsed demo that tells the story clearly, backed by our real
 results (waveforms, synthesis numbers, live dashboard).
 
+## ⭐⭐ SHOWCASING WHAT WE BUILT — "if it's not on a slide, it doesn't exist"
+> The tech is done and it's strong; the deck is now where the project is WON or LOST. The
+> deep blocks (TEDA, joint fusion, sparse triage comms) are exactly what separates us from
+> the pack of "we automated a pump" projects — but ONLY if the judge sees them. Every asset
+> below MUST land on a visible slide moment or a spoken line. Nothing hidden.
+
+**The differentiator inventory — the 4 things rival teams almost certainly do NOT have.**
+Each needs a concrete on-slide artifact (not just a bullet claiming it):
+1. **TEDA self-tuning anomaly** (`adaptive_anomaly.v`) — *"our chip calibrates its own
+   normal per node; no hand-tuned thresholds → deployable across thousands of fields."*
+   Artifact: a waveform where TEDA catches an anomaly a fixed rail-check misses + one line
+   of the math (`(x−μ)² > m²·V`, divider-free). Frame as "AI anomaly, in silicon."
+2. **Joint / correlated fusion** (`analytics_engine`, 8C) — *"we reason about channel
+   COMBINATIONS, not each sensor alone."* Artifact: the sim row where every channel reads
+   "fine" alone yet the combination is flagged (status leaves SAFE). One killer example.
+3. **Two-tier triage + ~85–93% sparse caretaker comms** (`comms_tx`, 8A) — the answer to
+   "it's just automation." Artifact: the DIFFERENTIATOR SLIDE table below + the real
+   `msg_count` vs sample-count number from our own sim (Phase 8D).
+4. **It's real silicon** — the synthesized schematic + utilization/timing/power numbers
+   (Phase 8G / synthesis owner). Artifact: the schematic screenshot. **Biggest missing
+   asset — get it early.** Without it we're "a script"; with it we're "a chip."
+
+**Bonus coverage — a one-line flex slide:** 4/4 mandatory + **3/3 bonus, each EXCEEDED**
+(adaptive vs fixed anomaly · correlated vs independent fusion · event-triggered vs always-on
+cloud sync). Table + wording ready in `PROBLEM_STATEMENT.md` → "Bonus" section. Say it out loud.
+
+**Judge-responsive feature — crop + soil profiles.** If we build the proposed `crop_profile`
+(a judge suggested per-plant data): dedicate ONE line to *"you asked for per-crop data — here
+it is: the chip carries agronomy setpoints per crop AND soil type, and TEDA self-tunes around
+them."* Implementing a judge's own suggestion is a huge credibility signal — make sure it's
+visibly attributed to their feedback. (Status: proposed — see `PROBLEM_STATEMENT.md`.)
+
+**⏳ THE OFFICIAL 10-SLIDE FORMAT — mapping goes here.** The deck is a fixed 10 slides, each
+dedicated to a topic. Paste that format and we fill in, slide by slide, exactly which of the
+assets above lands where — so no differentiator falls through the cracks. Until then, the
+"Suggested deck flow" below is our best guess; the official format OVERRIDES it.
+
+---
+
 ## Where to pull material (already written)
 - `FEATURES.md` — the detect→act showcase table + the one-line pitch (use verbatim).
 - `PROBLEM_STATEMENT.md` — the official requirements + our feature→requirement mapping.
