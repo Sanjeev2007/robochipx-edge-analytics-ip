@@ -264,13 +264,32 @@ _(Last live snapshot. Update when the situation changes.)_
      ts=0 FALSE FROST packet killed. DONE, verified.
   5. ✅ **8D edge-win number + caretaker stream** — `C,`/`M,` machine lines + 97% saved; frozen
      17-field `D,` line untouched. DONE, verified.
-  6. **← NEXT: ⭐ "MISSION CONTROL" — THE SHOWCASE, built as TWO artifacts by SEPARATE AGENTS,
+  6. **⭐ "MISSION CONTROL" — THE SHOWCASE, built as TWO artifacts by SEPARATE AGENTS,
      ONE AT A TIME (user's call — the lead does NOT build these):**
-     - **6a (FIRST) — WEB Mission Control** (hero demo): a single self-contained HTML/CSS/JS
-       file (`demo/mission_control.html`) that REPLAYS the real captured sim output
-       (`demo/mission_control_data.txt` = the D/E/C/M stream) as an animated story. Polished,
-       reliable on stage, shareable. This is the projector demo + slide-3/4 screenshot source.
-     - **6b (SECOND) — tkinter upgrade** (live proof): add the missing panels to the teammate's
+     - ✅ **6a DONE ({2026-07-09}) — WEB Mission Control** (hero demo): built
+       **`demo/mission_control.html`** — ONE self-contained page (double-click `file://`, no server/
+       CDN/libraries; the real D/C/M stream is EMBEDDED + parsed offline, no runtime fetch) that
+       REPLAYS the captured sim as an animated story. All panels from the `PRESENTATION_TASKS.md`
+       map: raw-vs-smoothed SVG charts · status+health gauge · pump/doser pulse · weed-vs-evaporation
+       callout · ⭐ combined-stress fusion badge (ts 24–25) · TEDA anomaly indicator · ⭐ Caretaker's
+       Phone (silent, buzzes on the 2 `C,` packets w/ severity+event+ACTION) · ⭐ dumb-vs-chip counter
+       (66 vs 2 → 97%, battery bars) · timeline log. Auto-play + play/pause/restart + speed + scrubber
+       + keyboard + phase narration; first 10 rows dimmed "filters settling". **VERIFIED in gstack
+       /browse: 0 console errors, phone fires at ts=38 (NUTRIENT_LOW) + ts=56 (SENSOR_ANOMALY),
+       counter ends 66/2/97%.** No `.v` or tkinter file touched. This is the projector demo (slide 8)
+       + slide-3/4 screenshot source.
+       - ⚠️ **REVISIONS REQUESTED (user, {2026-07-09}) — do these BEFORE 6b:**
+         **(R1) Bigger sample size:** extend the tb story-trace 66 → **≥200 samples** (richer
+         multi-incident narrative, ~5–8 caretaker packets), regenerate `demo/mission_control_data.txt`.
+         Testbench-only change (`edge_analytics_tb.v`), keep frozen D-line + C,/M, formats + RESULT PASS.
+         **(R2) "Only 3 parameters" — make ALL features PROMINENT + PERSISTENT:** the panels exist but
+         the 3 sensor charts dominate and the differentiator badges (weed/fusion/TEDA) are small +
+         dormant, so judges only register 3 things. Rework `mission_control.html` so EVERY feature is
+         an always-visible, labeled tile with a live status ("WEED DETECTION: monitoring→DETECTED",
+         "FUSION: ok→COMBINED STRESS", "TEDA: normal→FLAGGED", pump, doser, nutrient, frost/heat) and
+         the differentiators (TEDA / fusion / caretaker triage / edge-win) get equal-or-bigger billing
+         than the charts. R1 first (data), then R2 (dashboard renders the new data).
+     - **← THEN: 6b — tkinter upgrade** (live proof): add the missing panels to the teammate's
        `robochipx_dashboard_handoff/edge_agri_dashboard.py`, kept on the live `vvp | python` pipe.
        Run AFTER 6a. This is the "and here it is live off the actual chip" moment.
      - Data contract (from 8D): `D,`=17-field row · `E,<ts>,<event>` · `C,<ts>,<sev>,<event>,

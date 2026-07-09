@@ -5,6 +5,30 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — ⭐ WEB Mission Control (6a) — the hero demo (`demo/mission_control.html`)
+- **Built `demo/mission_control.html`** — ONE self-contained screen that REPLAYS the real captured
+  sim stream (`demo/mission_control_data.txt`) as an animated story. Opens by double-click
+  (`file://`); NO server, NO CDN, NO libraries — inline CSS + vanilla JS + inline SVG. The 66 D-rows
+  + 2 C-packets + M-line are EMBEDDED in the file and parsed at load (no runtime fetch → works fully
+  offline). Dark "mission control" theme, tuned for a projector.
+- **Panels (all from `PRESENTATION_TASKS.md` map):** raw-vs-smoothed SVG line charts (moisture/
+  nutrient/temp, faint raw + bold smoothed, progressive reveal, warm-up band shaded) · status badge +
+  crop-health gauge · Tier-1 pump/doser with a "watering" pulse · **weed-vs-evaporation** callout
+  (derived: `alert_weed`→WEED; `alert_heat`→"evaporation, weed suppressed"; else drawdown-normal) ·
+  **⭐ COMBINED-STRESS fusion badge** (fires when `status>0` but every `alert_*`=0 — real at ts 24–25) ·
+  **TEDA self-tuning anomaly** indicator (`alert_anomaly`) · **⭐ Caretaker's Phone** (silent, buzzes
+  ONLY on a `C,` packet, shows severity + event + ACTION) · **⭐ Dumb-node vs Our-chip counter** (66 vs
+  2, two battery bars, "97% fewer transmissions", labelled illustrative) · event/timeline log.
+- **Playback:** auto-play (play/pause/restart), 0.5×/1×/2×/4× speed, a scrubber, keyboard
+  (space/←/→/R), and a narration line naming the story phase (warm-up → dry spell → pump → nutrient →
+  heat → anomaly). First 10 D-rows render in a dimmed "filters settling…" state (honest warm-up); a
+  small line reads "replaying real Icarus Verilog sim output".
+- **VERIFIED in a headless browser (gstack /browse):** 0 console errors; 66 rows parsed; the two
+  caretaker packets fire the phone at ts=38 (WARNING NUTRIENT_LOW → TOP UP NUTRIENTS, pkt #1) and
+  ts=56 (CRITICAL SENSOR_ANOMALY → CHECK/REPLACE SENSOR, pkt #2); combined-stress badge lights at
+  ts 24–25; counter ends 66 vs 2 → 97%, battery bars 18% vs 98%. Screenshots captured at each beat.
+- **Scope kept clean:** no `.v` file and no tkinter dashboard touched. NEXT = **6b tkinter upgrade**.
+
 ### Planning — Mission Control = two artifacts, separate agents, one at a time
 - **Showcase splits into two builds** (lead builds neither; each is a separate agent, sequential):
   **(1) WEB Mission Control** (`demo/mission_control.html`) — hero demo, a self-contained page that
