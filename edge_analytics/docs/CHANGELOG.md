@@ -5,6 +5,38 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Planning — Strategy locked: stay agriculture + "Mission Control" showcase
+- **Pivot REJECTED, agriculture stays.** Weighed re-skinning the same IP to a higher-drama
+  domain (structural/bridge, disaster warning) or a general "edge-sentinel IP" reframe — both
+  rejected (no real second-domain story, too much churn at <12h). **Win on execution + technical
+  depth**, calibrated to a chip-engineer audience ("self-tuning anomaly in divider-free silicon"
+  is the wow for *that* room). Lead the pitch with "no surveyed system does edge analytics in
+  dedicated RTL." Full record: `memory.md §10` recent-decisions.
+- **⭐ Showcase = "Mission Control" dashboard** — the core remaining work. One live screen where
+  every feature lights up on the story trace; the two invisible differentiators become the stars:
+  a **"Caretaker's Phone"** (silent, buzzes ~3× with an action) + a **"Dumb node vs Our chip"**
+  transmission counter. Almost all panels derive from the existing 17-field `D,` line; only the
+  caretaker packets need a new `C,` line (Phase 8D). Panel map in `PRESENTATION_TASKS.md`.
+- **Revised phase order:** warm-up fix → 8D (edge-win number + `C,` caretaker stream) → Mission
+  Control dashboard → schematic (8G, teammate, parallel) → `crop_profile.v` (optional) → Phase 6.
+
+### Added — Crop + soil profile DATA (Task 4 deliverable)
+- **`docs/CROP_PROFILE_DATA.md` created** — real, cited agronomic setpoints for 4 crops
+  (tomato, wheat, rice, lettuce) × 3 soils (sandy, loam, clay). Contains: (1) real-units
+  table with an inline citation per value, (2) the same values scaled to the chip's 0–4095
+  range with every conversion shown, (3) a ready-to-paste **ROM-ready block** of the 5
+  setpoints `{moisture_target, nutrient_target, temp_lo, temp_hi, depletion_baseline}` per
+  `{crop_id, soil_id}`, (4) a References-slide source list.
+- **Sources:** FAO-56 Table 12 (`Kc`) + Table 22 (depletion `p`, rooting depth); USDA NRCS
+  AWC/FC/WP by soil texture; UC IPM / Tri-State / Missouri extension NPK soil-test guides;
+  agronomy cardinal-temperature refs. `nutrient_target` index magnitude + depletion constant
+  `C` are marked **ESTIMATED** (their `Kc`/`AWC`/soil-test components are cited; no fake cites).
+- **`crop_profile.v` can now be built from this file** (RTL lead's Tier-1.6 task). ⚠️ Doc
+  flags an **encoding-reconciliation** point: Task-4 uses the full 0–4095 range (`%×40.95`,
+  `°C×81.9`), while the frozen §5 thresholds/story-trace use the compressed testbench band
+  (`/5`, `/10`); an operational-band equivalent column is included so the RTL lead can pick
+  one encoding project-wide.
+
 ### Planning — Crop/soil profiles + showcasing direction (post-integration)
 - **Crop + soil profile — proposed feature** (replaces dropped predict-dry). `crop_profile.v`
   ROM makes thresholds configurable per `crop_id` + `soil_id`. **Data sources** documented:

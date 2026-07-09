@@ -41,6 +41,31 @@ it is: the chip carries agronomy setpoints per crop AND soil type, and TEDA self
 them."* Implementing a judge's own suggestion is a huge credibility signal — make sure it's
 visibly attributed to their feedback. (Status: proposed — see `PROBLEM_STATEMENT.md`.)
 
+**⭐ "MISSION CONTROL" — the demo that makes ALL features VISIBLE (core remaining work).**
+The problem: the current dashboard shows only the *base automation* (smoothing/pump/alerts/
+status/health) — the "common" half. The **differentiators are invisible.** Mission Control =
+ONE live screen, playing the canonical story trace, where every feature lights up and the
+differentiators are the STARS. Panels:
+
+| Panel | Feature it makes visible | Data source |
+|---|---|---|
+| raw-vs-smoothed line charts | moving-average smoothing | existing `D,` line |
+| status badge + crop_health gauge | thresholds + fused health | `D,` line |
+| pump ON/OFF + "watering" pulse | auto-irrigation + hysteresis | `D,` line |
+| **weed-vs-evaporation callout** | temp-compensated weed detection | derive: alert flags + moisture rate |
+| **"COMBINED STRESS caught" badge** | joint/correlated fusion | derive: status>0 with NO single alert set |
+| **TEDA self-tuning indicator** | adaptive anomaly ("learned this field's normal") | `alert_anomaly` (already merged) |
+| ⭐ **"Caretaker's Phone"** | two-tier triage — silent, buzzes ~3× with an ACTION | **new `C,` line (Phase 8D)** |
+| ⭐ **"Dumb node vs Our chip" counter** + battery bars | the 85% edge-win, made dramatic | **counters (Phase 8D)** |
+| event log w/ timestamps | the story timeline | `E,` lines |
+
+The two ⭐ panels are the whole point — they turn the invisible differentiators into the most
+dramatic thing on screen (watch the dumb-node counter race to 66 while our chip stays silent and
+fires 3 precise, actionable alerts). Feasibility: only the caretaker packets need new stream data
+(the `C,` line from 8D); everything else is presentation logic on the existing 17-field `D,` line.
+The frozen `D,` contract is untouched — we only ADD line types. This is the slide-8 demo AND the
+screenshot source for slides 3–4.
+
 **✅ THE OFFICIAL 10-SLIDE MAPPING** (from `RCX PPT TEMPLATE_...pptx`). This is a FIXED
 submission format — our job is to pack our story into these exact boxes. **Slides 3 & 4 are
 where we win — concentrate every differentiator there.** The "Suggested deck flow" further

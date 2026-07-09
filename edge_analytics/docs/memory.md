@@ -246,16 +246,43 @@ _(Last live snapshot. Update when the situation changes.)_
   1. ✅ **8F TEDA** (`adaptive_anomaly.v`) — DONE, verified in isolation.
   2. ✅ **8C joint fusion** (`analytics_engine` `crop_health`+`status`) — DONE, regression + new fusion case pass.
   3. ✅ **INTEGRATION** — `adaptive_anomaly` + `comms_tx` wired into `edge_analytics_top` — DONE, verified.
-  4. **← NEXT: 8D edge-win number** (now `msg_count` is REAL over the story trace: 3 packets /
-     66 samples on-chip) — print-only in the tb, compute % data / radio-on saved vs streaming.
-     ⚠️ **Fix the warm-up FALSE FROST packet (ts=0) BEFORE 8D** — the ts=0 caretaker packet is
-     a moving-avg fill transient; it inflates the packet count 8D reports. Gate `comms_tx`
-     `in_valid` with a warm-up-done signal in `edge_analytics_top.v` (radio silent until the
-     8-sample filter settles) — top file ONLY, no verified module touched.
-  5. **Regenerate schematic (8G)** — now shows the full feature-complete chip.
-  6. **Phase 6** final capture on the canonical story-trace.
+  4. **← NEXT: warm-up fix** — gate `comms_tx` `in_valid` with a warm-up-done signal in
+     `edge_analytics_top.v` so the radio stays silent until the 8-sample filter settles. Kills
+     the ts=0 FALSE FROST caretaker packet (a moving-avg fill transient that would otherwise
+     inflate the 8D count + show a fake alert in the demo). Top file ONLY, no verified module.
+  5. **8D edge-win number + caretaker stream** — in the tb, compute % data / radio-on saved
+     (dumb-node = every sample vs our sparse packets) AND emit machine-readable `C,` lines for
+     each caretaker packet (`ts,severity,event,action,health,msg_count`) + the baseline/our
+     counters. Keeps the frozen 17-field `D,` line; just ADDS line types. Feeds the showcase.
+  6. **⭐ "MISSION CONTROL" dashboard — THE SHOWCASE** (makes ALL features visible; see the
+     showcasing decision below). Python work on the existing dashboard.
+  7. **Regenerate schematic (8G)** — teammate on Vivado/Yosys, in parallel; the "real silicon" proof.
+  8. **`crop_profile.v`** — OPTIONAL, data ready (`CROP_PROFILE_DATA.md`); only if time after 6+7.
+  9. **Phase 6** final capture — waveforms + a Mission Control screen-recording on the story trace.
 
 - **RECENT DECISIONS (post-integration, {2026-07-09}):**
+  - **STRATEGY — STAY AGRICULTURE, WIN ON EXECUTION (pivot rejected).** Considered pointing the
+    same IP at a higher-drama domain (structural/bridge, disaster warning) or reframing it as a
+    general "edge-sentinel IP." **User rejected both** — no real second-domain story to track,
+    too much churn at <12h left. **Locked: agriculture stays.** Excitement comes from EXECUTION
+    + technical DEPTH, not domain. **Audience reframe:** the judges are chip engineers, not lay
+    friends — "self-tuning anomaly in divider-free silicon" is impressive to *that* room. Lead
+    the pitch with rigor: "no surveyed system does edge analytics in dedicated RTL — we put a
+    self-tuning analytics brain in silicon." Then triage/85% answers "too common."
+  - **⭐ SHOWCASING = "MISSION CONTROL" DASHBOARD (the core remaining work).** Problem the user
+    named: the DIFFERENTIATORS (caretaker triage, 85% saving, TEDA, fusion) are invisible — the
+    current dashboard only shows the *base automation*, so a judge sees the common half and reads
+    about the impressive half. Fix = ONE live screen where every feature lights up on the story
+    trace, differentiators as the STARS. Panels: raw-vs-smoothed charts · status/health · pump ·
+    **weed-vs-evaporation callout** · **"combined stress caught" fusion badge** · **TEDA
+    self-tuning-anomaly indicator** · ⭐ **"Caretaker's Phone"** (silent, buzzes ~3× with an
+    ACTION) · ⭐ **"Dumb node vs Our chip" transmission counter + battery bars**. Feasibility:
+    almost all panels are DERIVABLE from the existing 17-field `D,` line (fusion badge = status>0
+    with no single alert; weed/evap = alert flags + moisture rate); only the caretaker packets
+    need the new `C,` line (from 8D). No frozen-contract break. This is the demo centerpiece
+    (slide 8) + the screenshot source for slides 3–4. Detailed panel map in `PRESENTATION_TASKS.md`.
+    - **Wokwi/Tinkercad = NO** (MCU-only, can't run our Verilog; fatal credibility risk). The
+      "virtual chip" itch is served honestly by **DigitalJS Online** on ONE small block + waveforms.
   - **CROP + SOIL PROFILE — proposed feature (replaces the dropped predict-dry).** Judge
     suggested collecting per-plant data → we make thresholds configurable per `crop_id` +
     `soil_id` via a small `crop_profile.v` ROM → `{moisture_target, nutrient_target, temp_hi,
@@ -266,6 +293,14 @@ _(Last live snapshot. Update when the situation changes.)_
     PORTS (currently params) — bounded change, defaults must reproduce verified behavior
     (built-in regression). Do AFTER 8D + once schematic underway. Data-gathering = a task for
     the ChatGPT-only data teammate (see `DATA_TASKS.md` Task 4). Spec home: `PROBLEM_STATEMENT.md`.
+    - ✅ **DATA DONE ({2026-07-09}): `docs/CROP_PROFILE_DATA.md` created** — 4 crops × 3 soils,
+      real cited setpoints + 0–4095 scaled table + ROM-ready block + References list.
+      **`crop_profile.v` can now be built from it.** ⚠️ Doc flags an ENCODING mismatch the RTL
+      lead must resolve: Task-4 scaling uses the full 0–4095 range (`%×40.95`, `°C×81.9`,
+      `ppm×4.095`), but the frozen §5 thresholds/story-trace use the compressed testbench band
+      (`/5`, `/10`); an operational-band column is included — pick ONE encoding project-wide
+      before wiring the ROM. `nutrient_target` index + depletion constant `C` are ESTIMATED
+      (their Kc/AWC/soil-test components are cited; no invented citations).
   - **SHOWCASING = "virtual chip processing data."** User wanted a Wokwi/Tinkercad model.
     ⚠️ **Wokwi/Tinkercad simulate MCUs (Arduino/ESP/Pico) running C — they CANNOT run our
     Verilog.** Presenting an Arduino mock as "our chip" at a CHIP-DESIGN hackathon = fatal
