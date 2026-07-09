@@ -29,6 +29,38 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   stub feed. `SYNTHESIS_TASKS.md` is now synthesis-only. `WORKFLOW.md` branch table updated.
 
 ### Added
+- **Phase 5 — `edge_analytics_top.v`** (integration + live-stream egress): the
+  top level that chains the four EXISTING blocks
+  `sensor_collector → smoothing_stage → analytics_engine → output_analytics`.
+  **Pure wiring + alignment — no sub-module was modified.**
+  - **⚠️ LATENCY ALIGNMENT (the whole point of this phase) solved with plain
+    shift-register delay lines** exactly per `BUILD_PLAN.md` Phase 5. Each `D`-line
+    field is born at a different stage (raw+ts at `sensor_collector`, avg at
+    `smoothing_stage`, decisions at `output_analytics`), so they are re-aligned to
+    the final `output_analytics` cycle: **raw m/n/t and timestamp delayed +3, avg
+    m/n/t delayed +2, decisions +0.** The same lines are tapped at **+1 (avg_moisture)
+    and +2 (timestamp)** to feed `output_analytics`'s own inputs on ITS input cycle
+    (per `INTERFACES.md` §2 output_analytics inputs). Plain (not valid-gated) shift
+    registers are correct because every stage's valid strobe is itself a plain
+    1-clock delay, so data and valid stay locked together even across sensor gaps.
+  - Exposes one aligned output bundle under a single `out_valid`: all `D`-line
+    fields (timestamp, raw m/n/t, avg m/n/t, pump, status, health) plus the alert
+    bus and `event_id`/`event_timestamp`. Synthesizable, `clk`/`rst`-driven, fully
+    commented.
+- `edge_analytics_tb.v` — top-level testbench that plays a 56-sample story trace
+  (healthy&wet → gentle dry-spell → irrigation recovery → nutrient low → heat) one
+  sample per cycle, and on **every** valid cycle `$display`s the live stream lines
+  EXACTLY per `INTERFACES.md` §3: a `D,<ts>,<m>,<n>,<t>,<avgM>,<avgN>,<avgT>,<pump>,
+  <status>,<health>` line, plus an `E,<ts>,<EVENT_NAME>` line whenever `event_id!=0`
+  (names from `INTERFACES.md` §4). Ready to pipe: `vvp simulation.vvp | python3
+  dashboard.py`.
+  - **Alignment proof (rigorous):** a tiny in-testbench reference model recomputes,
+    per timestamp, the raw value fed and the expected 8-sample moving average, and
+    self-checks EVERY `D` line — raw (+3), avg (+2) and decision (+0) all resolve to
+    the SAME original sample. A highlighted banner spotlights the PUMP_ON sample.
+  - Trace is arranged so `ts` == feed index (reset released so the first valid
+    sample is captured while the free-running counter is 0), letting the reference
+    arrays be indexed directly by the `timestamp` printed on each line. Dumps `dump.vcd`.
 - **Phase 4 — `output_analytics.v`** (mandatory feature #4): the clean, registered
   actuator/alert bus that turns the analytics_engine decisions into the signals the
   outside world acts on. Interface per `INTERFACES.md` §2 (with the two Phase 4 input
@@ -153,6 +185,28 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   machine-health-monitor concept.
 
 ### Verified
+- Compiled and simulated the FULL integrated chip successfully
+  (`iverilog -o simulation.vvp edge_analytics_top.v output_analytics.v
+  analytics_engine.v smoothing_stage.v moving_avg.v sensor_collector.v
+  edge_analytics_tb.v && vvp simulation.vvp`). **RESULT: PASS (0 errors)** — every
+  one of the 56 `D` lines passed the reference-model alignment self-check.
+  - **Alignment proof, one known sample (`ts=24`):** the D line was
+    `D,24,133,300,250,196,300,250,1,1,195`. Raw moisture **133** (exactly what was
+    fed at ts=24, delayed +3), its 8-sample average **196** (= (259+241+223+205+187+
+    169+151+133)>>3, delayed +2), and the resulting decision **pump_on=1** (196<200 ⇒
+    dry ⇒ pump, +0) ALL appear on that SAME line — proving the delay lines re-aligned
+    raw, avg and decision to one original sample.
+  - **Story events fired correctly** with aligned timestamps: `PUMP_OFF` at ts=7
+    (warm-up settles wet, pump off), `PUMP_ON` at ts=24 (soil dried below 200),
+    `PUMP_OFF` at ts=28 (irrigation recovered the soil past 350), `NUTRIENT_LOW` at
+    ts=38 (avg_nutrient < 250), `HEAT_STRESS` at ts=50 (avg_temp > 400). The gentle
+    dry-spell did NOT false-trigger `weed`.
+  - **Note (honest):** ts=0–6 show a moving-average WARM-UP RAMP (each filter's
+    8-sample buffer starts at 0, so averages climb from 0 over the first ~8 samples).
+    This produces a transient `FROST_RISK`/`CRITICAL` at ts=0 and a warm-up pump
+    on→off before the window fills. It is inherent to `moving_avg` (not a wiring
+    issue); the healthy baseline is kept wet (400) so the pump settles cleanly OFF by
+    ts=7 and the FIRST genuine `PUMP_ON` is the real dry-spell at ts=24.
 - Compiled and simulated `output_analytics` successfully
   (`iverilog -o simulation.vvp output_analytics.v output_analytics_tb.v && vvp
   simulation.vvp`). **RESULT: PASS (0 errors).** The trace confirmed pump hysteresis
@@ -174,8 +228,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   when dry+hot pushed `active≥2`.
 
 ### Planned
-- Phase 5 — live-stream egress: top testbench `$display`s `D`/`E` lines per `INTERFACES.md` §3.
-- `edge_analytics_top` — top-level integration of all blocks (Phase 6).
+- Phase 6 — full demo on the VERIFIED canonical story-trace (from the data role):
+  swap the short trace for the real one, capture waveforms + the full stream, and
+  fire the synthesis/dashboard handoffs.
+- (Optional) prime/warm the moving-average window before streaming, or gate output
+  until the filter is full, to suppress the ts=0–6 warm-up ramp for a cleaner demo.
 - Install `gtkwave` for visual waveform inspection.
 
 ## [0.1.0] - 2026-07-09

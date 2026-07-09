@@ -72,7 +72,7 @@ Three sensor channels for the demo: **soil moisture, nutrient (NPK), temperature
 | 2b | `smoothing_stage` | Phase 2 wiring: `moving_avg` ×3 (one/channel) + 1-cycle timestamp delay to keep "when" aligned with the smoothed set | ✅ built + simulated |
 | 3 | `analytics_engine` | Thresholds → status; plus depletion-rate check for weed/anomaly | ✅ built + simulated |
 | 4 | `output_analytics` | Registered actuator/alert bus: `pump_on` (hysteresis), `dose_nutrient`, `alert_*`, PUMP_ON/OFF events, status pass-through | ✅ built + simulated |
-| 5 | `edge_analytics_top` | Wire everything together (build LAST) | ⬜ planned |
+| 5 | `edge_analytics_top` | Wire the 4 blocks + latency-alignment delay lines (raw/ts +3, avg +2); live `D`/`E` egress | ✅ built + simulated |
 
 ## 7. Key design decisions
 - **Window size is a power of two** (`N = 2^LOG2_N`) so "divide by N" is a cheap

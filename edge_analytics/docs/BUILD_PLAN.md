@@ -123,7 +123,7 @@
 - **Test:** verify pump doesn't oscillate; outputs stable and match decisions.
 - **Done when:** actuator/alert bus is clean and correct.
 
-## Phase 5 — `edge_analytics_top` (integration + live egress)   (mandatory + cloud-sync egress)   Status: ⬜
+## Phase 5 — `edge_analytics_top` (integration + live egress)   (mandatory + cloud-sync egress)   Status: ✅ built + simulated
 - **Owner:** RTL lead. **Depends on:** Phases 1–4.
 - **Goal:** wire the whole chip together AND emit the live `D`/`E` stream. (The stream
   can't exist without the integrated, aligned pipeline — so integration + egress are
