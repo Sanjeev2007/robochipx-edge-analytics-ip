@@ -364,6 +364,32 @@ module edge_analytics_top #(
              (oa_event_id != EV_NONE) ? oa_event_timestamp
            : ts_d3;   // injected anomaly is stamped with THIS sample's "when"
 
+    // ---- WARM-UP GATE (mute the Tier-2 radio until the filters settle) -------
+    //   WHY: the 8-sample moving_avg buffers start at 0, so during the first
+    //   ~8 valid samples every average RAMPS UP from 0 (a filter-fill transient,
+    //   NOT a real field condition).  While it ramps, avg_temp reads artificially
+    //   COLD and fires a spurious FROST_RISK -> a FALSE caretaker packet at ts=0.
+    //
+    //   FIX: count valid output samples; assert warm_done once the moving-average
+    //   window has filled (window = 2^LOG2_N = 8 samples, plus a small
+    //   pipeline-latency margin).  Gate ONLY comms_tx's in_valid with warm_done -
+    //   the aligned 17-field D-line and EVERY Tier-1 actuator (pump/doser/alerts)
+    //   are UNCHANGED; only the sparse Tier-2 caretaker radio is held silent while
+    //   the averages are still garbage.  warm_cnt counts oa_valid cycles (= output
+    //   samples), so it inherently accounts for the pipeline fill.
+    localparam integer WARMUP_N = (1 << LOG2_N) + 2;  // 8-sample window + 2-cycle margin
+    reg [7:0] warm_cnt;                                // valid-output counter (saturates)
+    wire      warm_done = (warm_cnt >= WARMUP_N);      // 1 once the window has filled
+
+    always @(posedge clk) begin
+        if (rst)
+            warm_cnt <= 8'd0;
+        else if (oa_valid && !warm_done)
+            warm_cnt <= warm_cnt + 8'd1;   // tick per valid output until the window fills
+    end
+
+    wire cx_in_valid = oa_valid & warm_done;  // radio sees samples ONLY after warm-up
+
     wire            cx_msg_valid;
     wire [63:0]     cx_alert_packet;
     wire [15:0]     cx_msg_count;
@@ -375,7 +401,7 @@ module edge_analytics_top #(
     ) u_comms_tx (
         .clk            (clk),
         .rst            (rst),
-        .in_valid       (oa_valid),          // one decision set per valid output cycle
+        .in_valid       (cx_in_valid),       // gated: valid output AND warm-up done
         .event_id       (comms_event_id),    // real event wins, else injected anomaly
         .event_timestamp(comms_event_ts),    // matching timestamp for that event
         .status         (oa_status),         // severity input

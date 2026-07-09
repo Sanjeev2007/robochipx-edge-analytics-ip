@@ -61,10 +61,20 @@ differentiators are the STARS. Panels:
 
 The two ⭐ panels are the whole point — they turn the invisible differentiators into the most
 dramatic thing on screen (watch the dumb-node counter race to 66 while our chip stays silent and
-fires 3 precise, actionable alerts). Feasibility: only the caretaker packets need new stream data
-(the `C,` line from 8D); everything else is presentation logic on the existing 17-field `D,` line.
-The frozen `D,` contract is untouched — we only ADD line types. This is the slide-8 demo AND the
-screenshot source for slides 3–4.
+fires 2 precise, actionable alerts). Feasibility: only the caretaker packets need new stream data
+(the `C,` line from 8D — DONE); everything else is presentation logic on the existing 17-field
+`D,` line. The frozen `D,` contract is untouched — we only ADD line types.
+
+**Built as TWO artifacts, by SEPARATE agents, one at a time** (lead does not build these):
+1. **WEB Mission Control (FIRST, the hero):** a self-contained `demo/mission_control.html` that
+   REPLAYS the real captured sim stream (`demo/mission_control_data.txt`) as an animated story —
+   polished, reliable on the projector, shareable. Slide-8 demo + slide-3/4 screenshot source.
+2. **tkinter upgrade (SECOND, the live proof):** the panels above added to the teammate's
+   `edge_agri_dashboard.py`, kept on the live `vvp | python` pipe — the "and here it is live"
+   moment. Built after the web one lands.
+Real data (from the current sim): 2 caretaker packets (`NUTRIENT_LOW@38`, `SENSOR_ANOMALY@56`),
+`M,66,2,97` → **97% fewer transmissions**. ⚠️ First ~10 D-rows are filter warm-up (averages
+filling from 0 → Tier-1 alerts flicker) — show a "settling" state there, don't present them as real.
 
 **✅ THE OFFICIAL 10-SLIDE MAPPING** (from `RCX PPT TEMPLATE_...pptx`). This is a FIXED
 submission format — our job is to pack our story into these exact boxes. **Slides 3 & 4 are

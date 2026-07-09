@@ -5,6 +5,46 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Planning — Mission Control = two artifacts, separate agents, one at a time
+- **Showcase splits into two builds** (lead builds neither; each is a separate agent, sequential):
+  **(1) WEB Mission Control** (`demo/mission_control.html`) — hero demo, a self-contained page that
+  replays the real captured sim stream (`demo/mission_control_data.txt`); **(2) tkinter upgrade** —
+  add the panels to the teammate's `edge_agri_dashboard.py` on the live pipe (the "live proof").
+  Web first, tkinter second. Panel map + data contract in `PRESENTATION_TASKS.md` / `memory.md §10`.
+- **`demo/mission_control_data.txt` captured** — the exact D/E/C/M sim stream both artifacts render.
+
+### Added — Warm-up gate (top) + Phase 8D edge-win number & machine-readable caretaker stream
+- **Modified ONLY `edge_analytics_top.v` + `edge_analytics_tb.v`** — every RTL sub-module stays
+  frozen IP, untouched. Two changes, in one pass:
+- **(1) WARM-UP GATE (`edge_analytics_top.v`).** The ts=0 caretaker packet was a FALSE alarm — a
+  moving-average fill transient: while the 8-sample window fills from zero, `avg_temp` reads
+  artificially COLD and fires a spurious `FROST_RISK` → a fake caretaker packet at ts=0. Fix: a
+  `warm_cnt` counts valid output cycles (`oa_valid`); `warm_done = (warm_cnt >= WARMUP_N)` with
+  `WARMUP_N = (1<<LOG2_N)+2 = 10` (the 8-sample window + a 2-cycle pipeline margin). `comms_tx`'s
+  `in_valid` is now gated `oa_valid & warm_done`, so the **Tier-2 caretaker radio stays SILENT
+  until the filters settle**. The aligned **17-field D-line and EVERY Tier-1 actuator
+  (pump/doser/alerts) are byte-for-byte UNCHANGED** — only the sparse Tier-2 radio is muted during
+  warm-up. Result: the false ts=0 `FROST_RISK` packet is GONE; caretaker packets 3 → **2 real**
+  (`NUTRIENT_LOW@38`, `SENSOR_ANOMALY@56`), both still transmit.
+- **(2) PHASE 8D — edge-win metric + machine-readable caretaker stream (`edge_analytics_tb.v`).**
+  The frozen 17-field `D,` row is kept EXACTLY; only new line types were ADDED:
+  - For **each** caretaker packet, a machine-readable **`C,<ts>,<severity>,<event>,<action>,
+    <crop_health>,<msg_count>`** line (reuses the existing sev/event/action decode; the human `#
+    CARETAKER TX` comment is kept alongside). Feeds the dashboard's "Caretaker's Phone" panel.
+  - The **EDGE-WIN**: a naive node streams every valid sample (`dumb = samples_processed`); our
+    chip transmits only the sparse alerts (`our = msg_count`). `pct_saved = 100 - (100*our)/dumb`.
+    Emitted as a machine line **`M,<samples>,<msg_count>,<pct_saved>`** plus a human summary. This
+    run: **`M,66,2,97` → 97% fewer transmissions.**
+  - **4 self-checks** (all `#`-prefixed, roll into `errors` → RESULT PASS/FAIL): (a) D-line still
+    17 fields / 0 alignment errors; (b) **no caretaker packet at ts=0** (warm-up gate works);
+    (c) at least **2 real packets** transmit; (d) `msg_count` ≪ `samples_processed` (sparseness).
+- **VERIFIED — RESULT: PASS (0 errors):** `iverilog -o sim_top.vvp edge_analytics_top.v
+  sensor_collector.v smoothing_stage.v moving_avg.v analytics_engine.v output_analytics.v
+  adaptive_anomaly.v comms_tx.v edge_analytics_tb.v && vvp sim_top.vvp`. 66 samples processed
+  on-chip, **exactly 2 sparse caretaker packets** (`C,38,WARNING,NUTRIENT_LOW,MANUAL_FERT,205,1`
+  and `C,56,CRITICAL,SENSOR_ANOMALY,CHECK_SENSOR,205,2`), `M,66,2,97`, warm-up gate silent at
+  ts=0, all 66 D rows unchanged (17 fields, 0 alignment errors).
+
 ### Planning — Strategy locked: stay agriculture + "Mission Control" showcase
 - **Pivot REJECTED, agriculture stays.** Weighed re-skinning the same IP to a higher-drama
   domain (structural/bridge, disaster warning) or a general "edge-sentinel IP" reframe — both

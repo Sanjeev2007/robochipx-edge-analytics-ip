@@ -99,6 +99,8 @@ module edge_analytics_tb;
     integer errors;
     integer samples_processed;   // # of valid D-line output cycles (all analytics on-chip)
     integer caretaker_pkts;      // # of caretaker packets seen on the wire (msg_valid strobes)
+    integer warmup_pkts;         // # of caretaker packets fired at ts=0 (warm-up transient) - should be 0
+    integer pct_saved;           // % transmissions saved vs a naive stream-everything node
 
     // ---- Reference moving-average model (matches moving_avg exactly) ---------
     // moving_avg's buffer is zero-initialised, so at sample ts the average is the
@@ -304,11 +306,20 @@ module edge_analytics_tb;
             pk_ts     = out_alert_packet[31:0];
 
             caretaker_pkts = caretaker_pkts + 1;
+            // A packet stamped ts=0 would be the warm-up FROST transient (the false
+            // alarm the warm-up gate is meant to kill).  Tally it for self-check (b).
+            if (pk_ts == 0) warmup_pkts = warmup_pkts + 1;
 
+            // ---- Human-readable monitor line (dashboard parser skips '#' lines) ---
             $display("# CARETAKER TX #%0d: sev=%0s event=%0s action=%0s health=%0d ts=%0d (packet=%016h)",
                      out_msg_count,
                      sev_name(pk_sev), ev_name(pk_ev), ac_name(pk_ac),
                      pk_health, pk_ts, out_alert_packet);
+            // ---- Machine-readable caretaker line (Phase 8D) - the dashboard's
+            //   "Caretaker's Phone" feed:  C,<ts>,<severity>,<event>,<action>,<health>,<msg_count>
+            $display("C,%0d,%0s,%0s,%0s,%0d,%0d",
+                     pk_ts, sev_name(pk_sev), ev_name(pk_ev), ac_name(pk_ac),
+                     pk_health, out_msg_count);
             $fflush;
 
             // Reserved field sanity: must be zero in v1.
@@ -330,6 +341,7 @@ module edge_analytics_tb;
         errors = 0;
         samples_processed = 0;
         caretaker_pkts    = 0;
+        warmup_pkts       = 0;
 
         // ---- Print the 17-field dashboard CSV header ONCE ----------------
         // Field order here is the single source of truth; the per-cycle row in
@@ -391,29 +403,55 @@ module edge_analytics_tb;
         moisture_in = 0; nutrient_in = 0; temp_in = 0;
         repeat (8) @(negedge clk);
 
+        // ---- EDGE-WIN METRIC (Phase 8D) ----------------------------------
+        // A NAIVE node streams EVERY sample to the cloud/caretaker; OUR chip does
+        // all analytics on-chip and transmits only the sparse caretaker packets.
+        //   dumb_node_transmissions = samples_processed   (one per valid sample)
+        //   our_transmissions       = out_msg_count       (only the alerts)
+        //   pct_saved = (1 - our/dumb) * 100  == 100 - (100*our)/dumb   (integer)
+        if (samples_processed > 0)
+            pct_saved = 100 - (100 * out_msg_count) / samples_processed;
+        else
+            pct_saved = 0;
+
         // ---- Verdict -----------------------------------------------------
-        // Three integration self-checks (all '#'-prefixed so the CSV stays clean):
+        // Four integration self-checks (all '#'-prefixed so the CSV stays clean):
         //   (a) the D-line is still a valid 17-field aligned row (0 align errors)
-        //   (b) the caretaker radio actually transmitted at least one packet
-        //   (c) msg_count is MUCH smaller than the sample count (the sparseness we
-        //       pitch: transmit K alerts, not N raw samples)
+        //   (b) NO caretaker packet fired at ts=0 (the warm-up gate works)
+        //   (c) at least 2 real caretaker packets transmitted
+        //   (d) our msg_count is MUCH smaller than the sample count (the sparseness
+        //       we pitch: transmit K alerts, not N raw samples)
         $display("#---------------------------------------------------------");
         $display("# INTEGRATION SUMMARY (Tier-1 D-line + Tier-2 caretaker radio)");
         $display("#   samples processed on-chip : %0d", samples_processed);
         $display("#   caretaker packets TX'd    : %0d (msg_count reg = %0d)",
                  caretaker_pkts, out_msg_count);
-        // (b) at least one caretaker packet
-        if (caretaker_pkts < 1) begin
-            errors = errors + 1;
-            $display("#  ** FAIL no caretaker packet was transmitted.");
-        end
+        $display("#   EDGE-WIN: dumb node = %0d transmissions, our chip = %0d -> %0d%% saved",
+                 samples_processed, out_msg_count, pct_saved);
+        // ---- Machine-readable edge-win summary (Phase 8D) ----------------
+        //   M,<samples_processed>,<our_msg_count>,<pct_saved>
+        $display("M,%0d,%0d,%0d", samples_processed, out_msg_count, pct_saved);
+        $fflush;
+
         // consistency: the counted strobes must match the module's msg_count reg
         if (out_msg_count !== caretaker_pkts) begin
             errors = errors + 1;
             $display("#  ** FAIL msg_count reg (%0d) != strobes counted (%0d)",
                      out_msg_count, caretaker_pkts);
         end
-        // (c) sparseness: caretaker packets must be far fewer than samples (< 1/4).
+        // (b) warm-up gate: no caretaker packet may fire at ts=0 (the false FROST)
+        if (warmup_pkts != 0) begin
+            errors = errors + 1;
+            $display("#  ** FAIL warm-up gate leaked %0d packet(s) at ts=0.", warmup_pkts);
+        end else begin
+            $display("#   warm-up OK: 0 caretaker packets at ts=0 (false FROST suppressed)");
+        end
+        // (c) at least TWO real caretaker packets transmitted
+        if (caretaker_pkts < 2) begin
+            errors = errors + 1;
+            $display("#  ** FAIL fewer than 2 real caretaker packets (got %0d).", caretaker_pkts);
+        end
+        // (d) sparseness: caretaker packets must be far fewer than samples (< 1/4).
         if (!(caretaker_pkts * 4 < samples_processed)) begin
             errors = errors + 1;
             $display("#  ** FAIL caretaker channel not sparse (packets %0d vs samples %0d)",
@@ -424,8 +462,8 @@ module edge_analytics_tb;
         end
         $display("#---------------------------------------------------------");
         if (errors == 0)
-            $display("# RESULT: PASS - D-line aligned (17 fields), caretaker radio TX'd %0d sparse packet(s), 0 errors.",
-                     caretaker_pkts);
+            $display("# RESULT: PASS - D-line aligned (17 fields), warm-up gate silent at ts=0, caretaker radio TX'd %0d sparse packet(s) (%0d%% saved), 0 errors.",
+                     caretaker_pkts, pct_saved);
         else
             $display("# RESULT: FAIL - %0d error(s).", errors);
         $display("#---------------------------------------------------------");

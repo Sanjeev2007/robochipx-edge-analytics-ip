@@ -79,7 +79,7 @@ Three sensor channels for the demo: **soil moisture, nutrient (NPK), temperature
 | 8A | `comms_tx` ⭐ | **Differentiator:** event-triggered alert packet (severity+action_code) to the remote caretaker; rate-limited; `msg_count`. The "beyond automation" answer | ✅ built + simulated |
 | 8B | `predictor` | Divider-free moisture-slope extrapolation → `predict_dry`/PREDICT_DRY early warning; reuses the weed `dropped` primitive | ⬜ planned |
 | 8C | JOINT fusion | Upgrade `analytics_engine` fusion from OR-of-thresholds → correlated/interaction-aware `crop_health`+`status` (NO humidity channel — keeps 3-ch dashboard contract) | ✅ built + simulated |
-| 8D | edge-win metric | Testbench-only: samples-processed vs packets-transmitted → % data / radio-on saved | ⬜ planned |
+| 8D | edge-win metric | Testbench-only: samples-processed vs packets-transmitted → % data / radio-on saved (+ machine-readable `C,`/`M,` lines). **Also: top-level warm-up gate** mutes the Tier-2 radio until the moving-avg window fills → kills the false ts=0 FROST packet | ✅ built + simulated |
 | 8F | `adaptive_anomaly` ⭐ | TEDA self-tuning anomaly: running μ+σ² per channel, Chebyshev eccentricity, divider-free (cross-mult). Replaces fixed rail-check. The researcher-impressive block | ✅ built + simulated |
 | 8G | visualization | 3 artifacts: gtkwave/EPWave waveforms + block diagram + **Vivado/Yosys synthesized schematic** ("show the chip") | ⬜ planned |
 
@@ -240,22 +240,43 @@ _(Last live snapshot. Update when the situation changes.)_
   **VERIFIED RESULT: PASS (0 errors)** — 66 samples, exactly **3 sparse caretaker packets**
   (FROST_RISK@0 warm-up, NUTRIENT_LOW@38 standard, ⭐ SENSOR_ANOMALY@56 via injection);
   the rail's 2nd edge @63 was rate-limit-suppressed. 17-field CSV stream stays clean.
-- **NEXT ACTIONS (RESUME POINT):** Phases 1–5.5 + **8A + 8F + 8C + INTEGRATION** done. Continue
-  Phase 8, still **do NOT do Phase 6 yet** (final capture is the LAST step, run ONCE on the
-  feature-complete chip). Remaining build order:
+- **✅ WARM-UP FIX + Phase 8D DONE ({2026-07-09}):** modified **ONLY** `edge_analytics_top.v` +
+  `edge_analytics_tb.v` (all RTL sub-modules frozen). **Warm-up gate** (top-level): a `warm_cnt`
+  counts valid output cycles; `warm_done = warm_cnt >= WARMUP_N` (`WARMUP_N = (1<<LOG2_N)+2 = 10`
+  = 8-sample window + 2-cycle margin); `comms_tx.in_valid` is gated `oa_valid & warm_done`, so the
+  Tier-2 radio stays SILENT until the moving-avg window fills. The **ts=0 FALSE FROST packet is
+  GONE**; the D-line + all Tier-1 actuation are byte-for-byte UNCHANGED (only the radio is muted).
+  Caretaker packets dropped 3 → **2 real** (NUTRIENT_LOW@38, SENSOR_ANOMALY@56). **Phase 8D** (tb):
+  each packet now emits a machine-readable `C,<ts>,<severity>,<event>,<action>,<health>,<msg_count>`
+  line; the edge-win prints `M,<samples>,<msg_count>,<pct_saved>` = **`M,66,2,97` → 97% fewer
+  transmissions** vs a naive stream-everything node. 4 self-checks (a) D-line 17 fields / 0 align
+  errs, (b) 0 packets at ts=0 (warm-up works), (c) ≥2 real packets, (d) sparse — all PASS.
+  **VERIFIED RESULT: PASS (0 errors)** (`iverilog -o sim_top.vvp edge_analytics_top.v
+  sensor_collector.v smoothing_stage.v moving_avg.v analytics_engine.v output_analytics.v
+  adaptive_anomaly.v comms_tx.v edge_analytics_tb.v && vvp sim_top.vvp`).
+- **NEXT ACTIONS (RESUME POINT):** Phases 1–5.5 + **8A + 8F + 8C + INTEGRATION + warm-up + 8D**
+  done. Continue Phase 8, still **do NOT do Phase 6 yet** (final capture is the LAST step, run
+  ONCE on the feature-complete chip). Remaining build order:
   1. ✅ **8F TEDA** (`adaptive_anomaly.v`) — DONE, verified in isolation.
   2. ✅ **8C joint fusion** (`analytics_engine` `crop_health`+`status`) — DONE, regression + new fusion case pass.
   3. ✅ **INTEGRATION** — `adaptive_anomaly` + `comms_tx` wired into `edge_analytics_top` — DONE, verified.
-  4. **← NEXT: warm-up fix** — gate `comms_tx` `in_valid` with a warm-up-done signal in
-     `edge_analytics_top.v` so the radio stays silent until the 8-sample filter settles. Kills
-     the ts=0 FALSE FROST caretaker packet (a moving-avg fill transient that would otherwise
-     inflate the 8D count + show a fake alert in the demo). Top file ONLY, no verified module.
-  5. **8D edge-win number + caretaker stream** — in the tb, compute % data / radio-on saved
-     (dumb-node = every sample vs our sparse packets) AND emit machine-readable `C,` lines for
-     each caretaker packet (`ts,severity,event,action,health,msg_count`) + the baseline/our
-     counters. Keeps the frozen 17-field `D,` line; just ADDS line types. Feeds the showcase.
-  6. **⭐ "MISSION CONTROL" dashboard — THE SHOWCASE** (makes ALL features visible; see the
-     showcasing decision below). Python work on the existing dashboard.
+  4. ✅ **warm-up fix** — `comms_tx.in_valid` gated with `warm_done` in `edge_analytics_top.v`;
+     ts=0 FALSE FROST packet killed. DONE, verified.
+  5. ✅ **8D edge-win number + caretaker stream** — `C,`/`M,` machine lines + 97% saved; frozen
+     17-field `D,` line untouched. DONE, verified.
+  6. **← NEXT: ⭐ "MISSION CONTROL" — THE SHOWCASE, built as TWO artifacts by SEPARATE AGENTS,
+     ONE AT A TIME (user's call — the lead does NOT build these):**
+     - **6a (FIRST) — WEB Mission Control** (hero demo): a single self-contained HTML/CSS/JS
+       file (`demo/mission_control.html`) that REPLAYS the real captured sim output
+       (`demo/mission_control_data.txt` = the D/E/C/M stream) as an animated story. Polished,
+       reliable on stage, shareable. This is the projector demo + slide-3/4 screenshot source.
+     - **6b (SECOND) — tkinter upgrade** (live proof): add the missing panels to the teammate's
+       `robochipx_dashboard_handoff/edge_agri_dashboard.py`, kept on the live `vvp | python` pipe.
+       Run AFTER 6a. This is the "and here it is live off the actual chip" moment.
+     - Data contract (from 8D): `D,`=17-field row · `E,<ts>,<event>` · `C,<ts>,<sev>,<event>,
+       <action>,<health>,<msg_count>` · `M,<samples>,<msg_count>,<pct_saved>`. ⚠️ First ~10
+       D-rows are WARM-UP (averages filling from 0 → Tier-1 alerts flicker); show a "filter
+       settling" state there. Panel map: `PRESENTATION_TASKS.md` "Mission Control".
   7. **Regenerate schematic (8G)** — teammate on Vivado/Yosys, in parallel; the "real silicon" proof.
   8. **`crop_profile.v`** — OPTIONAL, data ready (`CROP_PROFILE_DATA.md`); only if time after 6+7.
   9. **Phase 6** final capture — waveforms + a Mission Control screen-recording on the story trace.
