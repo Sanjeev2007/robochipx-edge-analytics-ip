@@ -32,9 +32,20 @@
 | host dashboard (Python) | Read the UART/packet stream, show a live dashboard | Cloud sync (dashboard half) |
 | smarter irrigation | Pump control with hysteresis (avoid rapid on/off) | polish |
 
+### Tier 1.5 — DIFFERENTIATOR BONUS (added after judge feedback — see BUILD_PLAN Phase 8)
+> Judge feedback: the design reads as "just automation, nothing unique," and pushed for
+> a **caretaker communication system**. This tier is the answer. Build 8A + 8B; 8C/8D
+> are near-free. Full detail in `BUILD_PLAN.md` Phase 8 and `INTERFACES.md` §6.
+| Module / task | Role | Bonus |
+|---|---|---|
+| `comms_tx` ⭐ | **Two-tier response:** event-triggered alert packet (with a recommended *action*) to the remote caretaker over low-power radio — not just a dashboard | Differentiator: machine-to-human comms |
+| `predictor` | Extrapolate the moisture-depletion slope (divider-free) → warn *before* dry-out | Predictive / trend analytics |
+| strengthen fusion | Add humidity channel or weighted crop-health sum | Multi-sensor fusion (headline) |
+| edge-win quantification | Count samples-processed vs packets-transmitted → % data / radio-on saved | Proof the edge design pays off |
+
 ### Tier 3 — STRETCH / wow (only if ahead of schedule)
 - **Multi-zone:** replicate the pipeline for N plants/zones + aggregate (scalability story).
-- **Predictive watering:** extrapolate the depletion trend → "hours until dry" → schedule.
+- **UART realism:** serialize `comms_tx` alert packets to real bytes (`uart_tx.v`).
 - **Low-power story:** clock-gate the datapath when idle (real edge concern).
 
 ---

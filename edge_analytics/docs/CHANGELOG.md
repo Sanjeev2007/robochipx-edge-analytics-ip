@@ -5,6 +5,45 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Docs — Research paper summaries (individual + aggregate)
+- Read and summarized all 10 downloaded reference PDFs in `papers/`. New files:
+  - `papers/SUMMARIES.md` — one structured summary per paper (citation, what-it-is,
+    key numbers, which of our features it backs, how we go beyond / what to change),
+    grouped as baseline / why-edge surveys / differentiator evidence ⭐.
+  - `papers/AGGREGATE_SUMMARY.md` — cross-paper synthesis: feature→citation map,
+    major-feature framing, and a prioritized **"things we need to change/add"** list.
+- **Headline finding:** every surveyed system stops at software on a Pi/ESP32/gateway/cloud —
+  **none does analytics in dedicated RTL/silicon** (our contribution's empty box).
+- **Top actionable changes surfaced:** (1) fuse sensors *jointly* (correlation), not
+  independent per-sensor thresholds; (2) adopt TEDA-style recursive eccentricity
+  (mean+variance+Chebyshev, fixed-point) for the anomaly block; (3) download the Lozoya
+  paper + quantify our own egress reduction; (4) implement the rogue-sensor T1/T2/T3
+  fault taxonomy for `alert_anomaly`. Full list in `papers/AGGREGATE_SUMMARY.md §5`.
+
+### Planning — Differentiator bonus tier (Phase 8) added after judge feedback
+- **Evaluation feedback:** a judge called the project "too common — just automation, no
+  unique factor," and pushed for a **caretaker communication system** (message a human
+  what to do), not only a dashboard. See `memory.md §11` for the full context + rationale.
+- **Added Phase 8 "Differentiator Bonus Tier"** to `BUILD_PLAN.md` (docs-only, no RTL yet):
+  - **8A `comms_tx` ⭐** — event-triggered alert packet to the remote caretaker with a
+    recommended `action_code`; rate-limited; `msg_count`. The direct answer to the judge.
+  - **8B `predictor`** — divider-free moisture-slope extrapolation → `PREDICT_DRY` early
+    warning (reuses the weed `dropped` primitive).
+  - **8C** — strengthen the (already-existing) sensor fusion: add humidity channel or
+    weighted `crop_health`.
+  - **8D** — quantify the edge win: samples-processed vs packets-transmitted → % data /
+    radio-on saved (ties comms + "why edge" into one number).
+- **`INTERFACES.md`:** added event id 9 `PREDICT_DRY`; `predictor` + `comms_tx` port
+  lists (§2); new §6 comms/alert-packet layout + `action_code` table (the two-tier
+  response model); new §7 bonus params (`LEAD`, `MSG_GAP`, edge-win byte sizes), all
+  flagged TUNE pending the grill session + the judge's reference papers.
+- **`FEATURES.md`:** new "Beyond automation: two-tier response model" section; showcase
+  rows 8 (predictive) + 9 (caretaker comms); per-feature detail + requirement-map + pitch
+  updated.
+- **`ROADMAP.md`:** new Tier 1.5 differentiator table (promotes predictive from stretch).
+- **Not built yet:** Phase 8 RTL is deferred until the grill session runs and the judge's
+  papers arrive (constants may retune). Structure is fixed; params stay `parameter`s.
+
 ### Repository & process
 - **Public GitHub repo created & pushed:**
   https://github.com/Sanjeev2007/robochipx-edge-analytics-ip (branch `main`).

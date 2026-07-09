@@ -76,6 +76,10 @@ Three sensor channels for the demo: **soil moisture, nutrient (NPK), temperature
 | 4 | `output_analytics` | Registered actuator/alert bus: `pump_on` (hysteresis), `dose_nutrient`, `alert_*`, PUMP_ON/OFF events, status pass-through | ✅ built + simulated |
 | 5 | `edge_analytics_top` | Wire the 4 blocks + latency-alignment delay lines (raw/ts +3, avg +2); aligned output bundle | ✅ built + simulated |
 | 5.5 | `edge_analytics_tb` egress | Testbench-only: emit the dashboard's 17-field CSV (header once + row/cycle) with count→display-unit scaling; RTL untouched | ✅ done + simulated |
+| 8A | `comms_tx` ⭐ | **Differentiator:** event-triggered alert packet (severity+action_code) to the remote caretaker; rate-limited; `msg_count`. The "beyond automation" answer | ⬜ planned |
+| 8B | `predictor` | Divider-free moisture-slope extrapolation → `predict_dry`/PREDICT_DRY early warning; reuses the weed `dropped` primitive | ⬜ planned |
+| 8C | fusion strengthen | Add humidity 4th channel OR weighted `crop_health` (fusion already partly exists) | ⬜ planned |
+| 8D | edge-win metric | Testbench-only: samples-processed vs packets-transmitted → % data / radio-on saved | ⬜ planned |
 
 ## 7. Key design decisions
 - **Window size is a power of two** (`N = 2^LOG2_N`) so "divide by N" is a cheap
@@ -157,3 +161,42 @@ _(Last live snapshot. Update when the situation changes.)_
 - **NEXT ACTIONS:** (1) ~~reconcile egress~~ ✅; (2) ~~integration fixes~~ ✅; (3) generate
   + verify the canonical story-trace; (4) Phase 6 full demo (swap trace, capture
   waveforms, run the live dashboard on the Mac — see §8 checkpoint).
+
+## 11. 🟣 EVALUATION FEEDBACK → DIFFERENTIATOR PIVOT (Phase 8 tier)
+_A judge reviewed the project and said it's **"too common — just automation, no unique
+factor,"** noting he'd worked on the same paper and there are other research papers to
+draw from (user will supply them). He pushed hard on adding a **communication system to
+a human caretaker** (a message telling them what to do), not only a dashboard. The user
+initially countered "that's what the pump/fertilizer signals are for" — but those are
+Tier-1 *actuation*, a different thing from Tier-2 *human notification*._
+
+**Decision (agreed with user):** add a **DIFFERENTIATOR BONUS TIER** = `BUILD_PLAN.md`
+Phase 8 (8A–8D), `INTERFACES.md` §6/§7, `FEATURES.md` "two-tier response" section:
+- **8A `comms_tx` ⭐ (flagship):** event-triggered alert packet → remote caretaker with a
+  **recommended action** (INSPECT_WEED / CHECK_SENSOR / …), rate-limited. THIS is the
+  judge's point. Fires only for human-needed events; PUMP_ON/OFF stay local (Tier 1).
+- **8B `predictor`:** divider-free slope extrapolation → PREDICT_DRY early warning
+  (reuses the weed `dropped` primitive — cheap).
+- **8C fusion strengthen:** fusion ALREADY exists (`crop_health` + temp-compensated weed);
+  add humidity channel or weighted sum to make it a headline.
+- **8D edge-win metric:** samples-processed vs packets-transmitted → % data/radio-on
+  saved. Ties comms + "why edge" into ONE story: transmit K alerts, not N raw samples.
+
+**Key framing to defend in the grill:** the chip has **two output tiers** — Tier 1 local
+actuation (automation) + Tier 2 sparse remote comms (the exception-handling + the reason
+edge analytics saves power). Real new RTL = just 2 modules (`comms_tx`, `predictor`);
+8C is ~80% done, 8D is print-only.
+
+**Pending:** (a) user wants a **grill session** on this plan (not yet run); (b) judge's
+**reference papers** will land and may retune thresholds/packet layout — all such
+constants are named `parameter`s flagged "TUNE" in `INTERFACES.md` §5/§7. Do NOT write
+Phase 8 RTL until the grill + papers are in unless the user says go.
+
+**Papers gathered → `edge_analytics/papers/PAPERS.md`** (catalogued + tagged to features).
+User pasted 7 (mostly edge/IoT-agri surveys + 2 common-baseline IoT builds). Gap was: NO
+hardware/VLSI papers and none on event-triggered comms. Filled via web search — added 3
+open-access PDFs (TEDA FPGA streaming-anomaly hardware; edge-greenhouse fusion anomaly;
+rogue-soil-moisture-sensor detection) and the ⭐ key citation **Lozoya et al. 2021, MDPI
+Sensors 21(16):5541** (event-triggered irrigation comms: **>85% fewer messages, ~20% less
+power** — the quantified proof of our Tier-2/edge-win story; user must download it manually,
+MDPI blocks scripts). See PAPERS.md for the differentiation narrative + reading priority.

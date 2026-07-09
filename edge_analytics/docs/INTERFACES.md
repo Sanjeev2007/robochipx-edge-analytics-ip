@@ -73,6 +73,40 @@ whole pipeline stays aligned and the `D` stream line can carry all 3 at once.
 | out | `event_timestamp` | 32 | its timestamp |
 | out | `out_valid` | 1 | |
 
+### `predictor` (Phase 8B — predictive watering, divider-free)   ⬜ planned
+| Dir | Signal | Width | Meaning |
+|---|---|---|---|
+| in | `clk`, `rst`, `in_valid` | 1 | |
+| in | `avg_moisture` | 12 | smoothed moisture (same source as analytics_engine) |
+| in | `dropped` | 12 | moisture fall over `HIST_DEPTH` samples (the weed primitive, reused) |
+| in | `timestamp` | 32 | current time (to stamp the PREDICT_DRY event) |
+| out | `predict_dry` | 1 | 1 = heading below `DRY_THRESH` within `LEAD` samples |
+| out | `event_id` | 4 | `PREDICT_DRY`(9) on the 0→1 edge of `predict_dry`, else 0 |
+| out | `event_timestamp` | 32 | time the prediction fired |
+| out | `out_valid` | 1 | |
+
+> Extrapolation is **divider-free**: `projected = avg_moisture - (dropped*LEAD >> LOG2_HIST)`;
+> `predict_dry = (avg_moisture >= DRY_THRESH) && (projected < DRY_THRESH)`. `LEAD` = TUNE.
+
+### `comms_tx` (Phase 8A — event-triggered caretaker communication)   ⭐ ⬜ planned
+The chip's **second output tier**: a sparse, event-triggered alert channel to a REMOTE
+caretaker (radio/LoRa/GSM gateway), separate from the continuous dashboard telemetry (§3).
+| Dir | Signal | Width | Meaning |
+|---|---|---|---|
+| in | `clk`, `rst`, `in_valid` | 1 | |
+| in | `event_id` | 4 | current event from `output_analytics` (0=none) |
+| in | `event_timestamp` | 32 | its timestamp |
+| in | `status` | 2 | overall status (for severity) |
+| in | `crop_health` | 8 | fused health score (rides in the packet) |
+| out | `msg_valid` | 1 | 1-cycle strobe: a packet is being transmitted THIS cycle |
+| out | `alert_packet` | 64 | packed {severity, event_code, action_code, event_timestamp, crop_health} — see §6 |
+| out | `msg_count` | 16 | running tally of transmitted packets (feeds the Phase 8D edge-win math) |
+| out | (opt) `tx_byte`,`tx_strobe` | 8,1 | stretch: UART-serialized bytes of `alert_packet` |
+
+> Fires ONLY for **human-needed** events (WEED_DETECTED, SENSOR_ANOMALY, NUTRIENT_LOW
+> w/o doser, STATUS_CRITICAL, FROST_RISK, PREDICT_DRY). Machine-handled events
+> (PUMP_ON/OFF) do NOT transmit. A `MSG_GAP` (TUNE) rate-limit blocks same-event spam.
+
 ---
 
 ## 3. Live stream format (chip → dashboard)  — 17-field CSV, REAL-TIME, no file
@@ -156,6 +190,7 @@ Example: `24,26,60,25,39,60,25,1,0,0,0,0,0,0,1,76,0`
 | 6 | FROST_RISK | temperature too low |
 | 7 | SENSOR_ANOMALY | faulty/abnormal sensor |
 | 8 | STATUS_CRITICAL | overall crop health critical |
+| 9 | PREDICT_DRY | predicted dry-out ahead of time (Phase 8B early warning) |
 
 ---
 
@@ -176,3 +211,56 @@ hot −50, cold −50, weed −80, anomaly −40.
 
 **status:** CRITICAL(2) if `weed | anomaly | cold | (dry+low_nutrient+hot+cold)>=2`;
 else WARNING(1) if exactly one mild condition; else SAFE(0).
+
+---
+
+## 6. Comms / caretaker-alert packet (Phase 8A `comms_tx`)  — the SECOND output tier
+
+> **Two output tiers (the "beyond automation" story):**
+> - **Tier 1 — local actuation** (`pump_on`, `dose_nutrient`): machine-to-machine,
+>   handles routine problems on-chip, no message sent.
+> - **Tier 2 — remote comms** (`alert_packet`): machine-to-human, event-triggered,
+>   sent to the caretaker only for exceptions a machine shouldn't handle alone.
+> Streaming continuous telemetry (§3) is for the LOCAL dashboard; the comms packet is
+> the SPARSE, over-the-air alert. Transmitting K packets instead of N raw samples is the
+> quantified edge power/bandwidth win (Phase 8D).
+
+**`alert_packet` layout (64-bit, MSB→LSB):**
+| Field | Width | Meaning |
+|---|---|---|
+| `severity` | 4 | 1=INFO, 2=WARNING, 3=CRITICAL (derived from `status`/`event_id`) |
+| `event_code` | 4 | the triggering `event_id` (§4) |
+| `action_code` | 4 | recommended caretaker action (table below) |
+| `crop_health` | 8 | fused health score at time of alert |
+| `reserved` | 12 | 0 for now (future: zone id / sensor id) |
+| `event_timestamp` | 32 | when it fired |
+
+**`action_code` — what the caretaker is told to DO** (this is the judge's point made concrete):
+| code | name | fires for | caretaker action |
+|---|---|---|---|
+| 0 | NONE | — | (no message) |
+| 1 | INSPECT_WEED | WEED_DETECTED | go check the zone / remove the weed |
+| 2 | CHECK_SENSOR | SENSOR_ANOMALY | a sensor is faulty — inspect/replace |
+| 3 | MANUAL_FERTILIZE | NUTRIENT_LOW (no doser fitted) | top up nutrients manually |
+| 4 | PROTECT_FROST | FROST_RISK | deploy cover/heater |
+| 5 | RELOCATE_OR_REVIEW | STATUS_CRITICAL (persists) | environment unsuitable — review/relocate |
+| 6 | PRE_IRRIGATE | PREDICT_DRY | dry-out predicted soon — check pump/water supply |
+
+> **Which events notify vs stay local:** PUMP_ON/PUMP_OFF are Tier-1 (handled by the
+> pump, no packet). Everything in the `action_code` table is Tier-2 (packet sent). This
+> split IS the answer to "it's just automation": automation acts; comms escalates.
+
+---
+
+## 7. New bonus-tier params (Phase 8 — all named, all TUNE-able)
+| Name | Value (start) | Rule / meaning |
+|---|---|---|
+| `LEAD` | 4 | predictor projects moisture this many samples ahead (Phase 8B) |
+| `LOG2_HIST` | 2 | `= log2(HIST_DEPTH)`; makes `dropped>>LOG2_HIST` ≈ per-sample slope |
+| `MSG_GAP` | 8 | comms rate-limit: min valid-cycles before the SAME event re-transmits |
+| `RAW_PKT_BYTES` | 12 | assumed bytes if we streamed each raw sample to cloud (edge-win math) |
+| `ALERT_PKT_BYTES` | 8 | bytes per transmitted alert packet (edge-win math) |
+| `NUM_CH` (8C opt) | 3→4 | add humidity as a 4th channel to headline the fusion story |
+
+> These are **provisional** — expect tuning after the grill session and the judge's
+> reference papers. Keep them as Verilog `parameter`s, never hard-coded literals.

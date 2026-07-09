@@ -204,9 +204,101 @@
 - **Parallel start:** build against a stub that prints fake `D`/`E` lines until Phase 6 is ready.
 - **Done when:** dashboard updates live and the event log shows timestamps.
 
-## Phase 8 — bonuses   Status: ⬜
-- `adaptive_anomaly.v` (self-learning thresholds = AI bonus); extra channels
-  (humidity/light); `uart_tx.v` realism; Teammate B synthesis reports; Teammate D slides.
+## Phase 8 — DIFFERENTIATOR BONUS TIER (the "beyond automation" answer)   Status: ⬜
+> **Why this tier exists (evaluation feedback):** a judge said the project reads as
+> "just automation — nothing unique," and pushed hard on adding a **communication
+> system to a human caretaker** (not only a dashboard). This tier is the direct answer.
+> The unifying idea: the chip has **TWO output tiers** — Tier 1 = *local actuation*
+> (pump/doser, machine-to-machine, routine); Tier 2 = a **sparse, event-triggered
+> comms channel** to the remote caretaker (machine-to-human, exceptions only). Tier 2
+> is BOTH the caretaker-alert the judge wanted AND the reason edge analytics saves
+> power/bandwidth (transmit K alerts, not N raw samples). Build 8A + 8B first (the two
+> real new modules); 8C/8D are strengthen-and-measure and are near-free.
+>
+> ⚠️ **Design still settling:** thresholds, packet layout, and the predictor margin are
+> flagged "TUNE" below. They may change after (a) the planned grill session and (b) the
+> judge's research papers land. Build the structure; leave the constants as named params.
+
+### Phase 8A — `comms_tx` (event-triggered caretaker communication)  ⭐ FLAGSHIP   Status: ⬜
+- **Owner:** RTL lead. **Depends on:** Phase 4 (`output_analytics` events). **Interface:** `INTERFACES.md` §6.
+- **Goal:** the REMOTE notification channel — distinct from the continuous dashboard
+  telemetry (§3). On an event edge it latches a **compact alert packet** and "transmits"
+  it (to a LoRa/GSM gateway → caretaker's phone). It fires ONLY when a human is actually
+  needed, and rate-limits repeats — this sparseness IS the edge power/bandwidth win.
+- **Build (`comms_tx.v`):**
+  - Inputs: `clk`, `rst`, `in_valid`, `event_id[3:0]`, `event_timestamp[31:0]`,
+    `status[1:0]`, `crop_health[7:0]` (from `output_analytics`).
+  - Map each `event_id` → **{notify_caretaker?, severity, action_code}**. Automation
+    handles some events locally (PUMP_ON/OFF → no message); human-needed events
+    (WEED_DETECTED, SENSOR_ANOMALY, NUTRIENT_LOW if no doser, STATUS_CRITICAL, FROST_RISK)
+    → build a packet. `action_code` = recommended caretaker action (INSPECT_WEED,
+    CHECK_SENSOR, MANUAL_FERTILIZE, RELOCATE/PROTECT, REFILL_TANK). See `INTERFACES.md` §6.
+  - On a qualifying event: assert `msg_valid` for one cycle with a parallel
+    `alert_packet` bus = {severity, event_code, action_code, event_timestamp, crop_health}.
+  - **Rate-limit (TUNE `MSG_GAP`):** a down-counter blocks a repeat of the SAME event
+    until `MSG_GAP` valid cycles pass — no alert spam.
+  - Keep a `msg_count[15:0]` (transmitted-packet tally) for the Phase 8D edge-win math.
+  - **Stretch realism:** serialize `alert_packet` to bytes with a tiny UART TX FSM
+    (`uart_tx.v`, `tx_byte`/`tx_strobe`) so it "goes on a real wire." Keep the parallel
+    bus as the primary; UART is optional polish.
+- **Testbench (`comms_tx_tb.v`):** drive a sequence of `event_id`s including two
+  human-needed events, one machine-handled event (expect NO packet), and a rapid repeat
+  (expect rate-limit to suppress it). Self-check: `msg_valid` fires only for
+  human-needed events, `action_code`/`severity` correct, `msg_count` matches.
+- **Done when:** the sim prints an alert-packet line for exactly the human-needed events
+  (not the machine-handled ones), rate-limiting works, and `msg_count` is correct.
+
+### Phase 8B — `predictor` (predictive watering — act *before* the crop stresses)   Status: ⬜
+- **Owner:** RTL lead. **Depends on:** Phase 3 (smoothed moisture + depletion primitive).
+- **Goal:** move from *reactive* (`avg_moisture < DRY_THRESH`) to *predictive* — estimate
+  the moisture trend and raise `predict_dry` (event `PREDICT_DRY`) BEFORE the soil is dry,
+  so the pump/caretaker gets a lead-time warning.
+- **Reuse:** `analytics_engine` already computes `dropped` = moisture fall over `HIST_DEPTH`
+  valid samples (the weed primitive). The predictor reuses that slope — no new history.
+- **Build (`predictor.v`) — NO DIVIDER (beginner + synthesis friendly):**
+  - Extrapolate `LEAD` samples ahead with a shift-multiply, not a divide:
+    `projected = avg_moisture - (dropped * LEAD >> LOG2_HIST)` (guard underflow → 0).
+    (`dropped>>LOG2_HIST` ≈ per-sample slope; ×`LEAD` projects ahead.)
+  - `predict_dry = (avg_moisture >= DRY_THRESH) && (projected < DRY_THRESH)` — i.e. NOT
+    dry yet but heading below within `LEAD` samples. Register the output (1-cycle).
+  - Fire event `PREDICT_DRY` (new id, `INTERFACES.md` §4) on the 0→1 edge of `predict_dry`.
+  - Optional: expose `cycles_to_dry_est` for the dashboard (still divider-free — a small
+    LUT or leave it out for v1). **TUNE `LEAD`.**
+- **Testbench (`predictor_tb.v`):** feed a gentle decline that will cross `DRY_THRESH`;
+  confirm `predict_dry` + `PREDICT_DRY` fire a few samples EARLY, and do NOT fire on a
+  flat/rising trace or an already-dry trace.
+- **Done when:** the early-warning fires ahead of the actual dry threshold on a declining
+  trace, and stays quiet otherwise.
+
+### Phase 8C — strengthen sensor fusion (make the fusion story headline-worthy)   Status: ⬜
+- **Owner:** RTL lead. **Depends on:** Phase 3.
+- **Note:** fusion ALREADY exists (`crop_health` score + temp-compensated weed). This
+  phase makes it *prominent*, not from-scratch. Pick ONE (lowest-risk first):
+  - **(pref) Add a 4th channel — humidity** (`NUM_CH`→4): the pipeline is channel-
+    parameterized, so it's mostly wiring. Fold humidity into heat logic (`hot && low
+    humidity ⇒ real heat stress`) and the health score. Demonstrates scalability.
+  - OR make `crop_health` a **weighted sum** (named weights) instead of fixed penalties,
+    so "fusion" is explicit and tunable.
+- **Testbench:** show the fused verdict changing correctly when a second channel moves
+  while the first is steady (proves it's genuine fusion, not one dominant channel).
+- **Done when:** the fusion output responds to the added/weighted channel as designed.
+
+### Phase 8D — quantify the edge win (the number that wins the argument)   Status: ⬜
+- **Owner:** RTL lead + slides (Teammate D). **Depends on:** Phase 8A (`msg_count`).
+- **Goal:** turn "edge saves power/bandwidth" into a HARD number for the pitch.
+- **Build (in `edge_analytics_tb.v`, print-only — no `.v` change):**
+  - `samples_processed` = count of `out_valid` cycles (all analytics done on-chip).
+  - `packets_transmitted` = `comms_tx.msg_count` (what actually left the chip).
+  - Cloud-baseline bytes = `samples_processed * RAW_PKT_BYTES`; edge bytes =
+    `packets_transmitted * ALERT_PKT_BYTES`. Reduction % = `100*(1 - edge/cloud)`.
+  - Radio-power proxy: radio-on cycles avoided = samples not transmitted.
+  - `$display` a summary block at end of sim (feeds one slide).
+- **Done when:** the sim prints a credible "N samples processed on-chip, only K packets
+  transmitted → X% less data / radio-on time vs streaming to the cloud."
+
+### Phase 8E — remaining bonuses (as time allows)   Status: ⬜
+- `adaptive_anomaly.v` (self-learning thresholds = AI bonus); Teammate B synthesis
+  reports; Teammate D slides/story. (Extra channels now live in 8C; `uart_tx.v` in 8A.)
 
 ## Phase 9 — integrate, rehearse, submit   Status: ⬜
 - Full run-through, capture waveforms + a dashboard recording, finalize the deck.
