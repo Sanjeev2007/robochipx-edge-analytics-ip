@@ -72,7 +72,8 @@ Three sensor channels for the demo: **soil moisture, nutrient (NPK), temperature
 | 2b | `smoothing_stage` | Phase 2 wiring: `moving_avg` ×3 (one/channel) + 1-cycle timestamp delay to keep "when" aligned with the smoothed set | ✅ built + simulated |
 | 3 | `analytics_engine` | Thresholds → status; plus depletion-rate check for weed/anomaly | ✅ built + simulated |
 | 4 | `output_analytics` | Registered actuator/alert bus: `pump_on` (hysteresis), `dose_nutrient`, `alert_*`, PUMP_ON/OFF events, status pass-through | ✅ built + simulated |
-| 5 | `edge_analytics_top` | Wire the 4 blocks + latency-alignment delay lines (raw/ts +3, avg +2); live `D`/`E` egress | ✅ built + simulated |
+| 5 | `edge_analytics_top` | Wire the 4 blocks + latency-alignment delay lines (raw/ts +3, avg +2); aligned output bundle | ✅ built + simulated |
+| 5.5 | `edge_analytics_tb` egress | Testbench-only: emit the dashboard's 17-field CSV (header once + row/cycle) with count→display-unit scaling; RTL untouched | ✅ done + simulated |
 
 ## 7. Key design decisions
 - **Window size is a power of two** (`N = 2^LOG2_N`) so "divide by N" is a cheap
@@ -123,26 +124,25 @@ Waveform to capture: raw sensor → smoothed average → `pump_on` / alert flags
 
 ## 10. 🔴 CURRENT STATUS — read this to know where we are RIGHT NOW
 _(Last live snapshot. Update when the situation changes.)_
-- **Built & pushed:** Phases 1–5 — the FULL chip is integrated and streams the live
-  feed (`edge_analytics_top` + testbench). All on GitHub `main`.
-- **Dashboard handoff RECEIVED** at `edge_analytics/robochipx_dashboard_handoff/`
-  (working tkinter GUI `edge_agri_dashboard.py`, `demo_stream.py`, their contract docs).
-  ⚠️ **CONTRACT MISMATCH:** it does NOT use our `INTERFACES.md §3` `D`/`E` format. It
-  wants ONE 17-field CSV row per sample (header line; fields: timestamp, moisture/
-  nutrient/temp raw+avg, pump_on, dose_nutrient, alert_nutrient/weed/heat/frost/anomaly,
-  status, crop_health, relocate_recommend), values in physical units (~0–100, temp °C,
-  health 0–100), status as 0/1/2 or SAFE/WARNING/CRITICAL. Its parser is flexible
-  (skips headers, accepts key=value or positional CSV, has fallbacks).
-- **DECISION (recommended — adopt the dashboard's format):** rewrite our top testbench
-  `$display` to emit their 17-field CSV with count→unit **scaling** (moisture/nutrient
-  0–4095→0–100, temp 0–4095→0–50°C, health ×100/255), add `relocate_recommend`
-  (derive from status CRITICAL + low health, or print 0), and update `INTERFACES.md §3`
-  to match. Their dashboard stays UNTOUCHED (it's the finished, richer artifact).
+- **Built:** Phases 1–5 (FULL chip integrated + aligned output bundle) **and Phase 5.5
+  (egress reconciled to the dashboard's 17-field CSV)**. Phases 1–5 pushed; Phase 5.5
+  is a local testbench-only change ready to commit.
+- **✅ Phase 5.5 DONE (contract mismatch RESOLVED):** `edge_analytics_tb.v` now emits
+  the dashboard's 17-field CSV — header once, then one row per `out_valid` cycle:
+  `timestamp,moisture_raw,nutrient_raw,temp_raw,moisture_avg,nutrient_avg,temp_avg,
+  pump_on,dose_nutrient,alert_nutrient,alert_weed,alert_heat,alert_frost,alert_anomaly,
+  status,crop_health,relocate_recommend`. Count→display scaling in the testbench:
+  moisture/nutrient `count/5` (clamp 0–100), temp `count/10`, crop_health `health*100/255`,
+  status numeric 0/1/2, pump/dose/alert_* pass-through, `relocate_recommend = status==2 &&
+  scaled_health<35`. **No `.v` module touched.** `INTERFACES.md §3` updated to own this
+  contract. Verified: 56 rows × exactly 17 fields, ranges in-band, RESULT PASS (0 errors),
+  and the dashboard's own `parse_sample()` ingests header (skipped) + rows cleanly.
+  The dashboard (`robochipx_dashboard_handoff/edge_agri_dashboard.py`) stays UNTOUCHED.
 - **Data teammate:** on ChatGPT, at lunch. NOT a blocker — the lead/Claude can generate
   and verify the canonical story-trace directly against the RTL (Phase 5 tb already has
   a working 56-sample trace). Their trace is a later realism refinement.
 - **Teammates have NO coding assistant** (plain ChatGPT, no repo access) → each task
   sheet carries a fully self-contained paste-in prompt (see `DATA_TASKS.md`).
-- **NEXT ACTIONS:** (1) reconcile egress → dashboard CSV format + scaling; (2) generate
-  + verify the canonical story-trace; (3) Phase 6 full demo; (4) integrate dashboard on
-  the Mac (see §8 checkpoint).
+- **NEXT ACTIONS:** (1) ~~reconcile egress~~ ✅ done; (2) generate + verify the canonical
+  story-trace; (3) Phase 6 full demo (swap trace, capture waveforms, live dashboard
+  integration on the Mac — see §8 checkpoint); (4) commit/push Phase 5.5.

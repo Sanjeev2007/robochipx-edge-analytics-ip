@@ -6,13 +6,16 @@
 //   1) Plays the field-sensor STORY TRACE into the chip, one aligned sample set
 //      per clock: healthy -> gentle dry-spell (pump ON) -> irrigation recovery
 //      (pump OFF) -> nutrient low -> heat stress.
-//   2) On EVERY valid output cycle it prints the live stream lines EXACTLY per
-//      docs/INTERFACES.md 3:
-//         D,<ts>,<moist>,<nut>,<temp>,<avgM>,<avgN>,<avgT>,<pump>,<status>,<health>
-//      and, whenever an event fires (event_id != 0), an event line:
-//         E,<ts>,<EVENT_NAME>                (names from docs/INTERFACES.md 4)
-//      These lines pipe straight into the Python dashboard:
-//         vvp simulation.vvp | python3 dashboard.py
+//   2) On EVERY valid output cycle it prints ONE 17-field CSV row in the
+//      dashboard's contract format (Phase 5.5, docs/INTERFACES.md 3):
+//         timestamp,moisture_raw,nutrient_raw,temp_raw,moisture_avg,nutrient_avg,
+//         temp_avg,pump_on,dose_nutrient,alert_nutrient,alert_weed,alert_heat,
+//         alert_frost,alert_anomaly,status,crop_health,relocate_recommend
+//      The header line is printed ONCE at the top.  Raw sensor COUNTS (0-4095)
+//      are SCALED to display units here in the testbench (moisture/nutrient
+//      count/5 clamped 0-100, temp count/10, crop_health health*100/255); the
+//      RTL modules are untouched.  The stream pipes straight into the dashboard:
+//         vvp simulation.vvp | python3 edge_agri_dashboard.py
 //   3) PROVES LATENCY ALIGNMENT.  A tiny reference model recomputes, for each
 //      timestamp, the raw value we fed and the 8-sample moving average that
 //      SHOULD result.  On every D line it self-checks that the printed
@@ -148,19 +151,43 @@ module edge_analytics_tb;
     // =========================================================================
     integer ts_i;
     reg [DATA_WIDTH-1:0] exp_m, exp_am;
+
+    // ---- Scaling scratch (raw sensor COUNTS -> dashboard display units) ------
+    // `integer` (32-bit) so the *100 multiply for crop_health can't truncate.
+    integer sc_m_raw, sc_n_raw, sc_t_raw;   // scaled raw moisture/nutrient/temp
+    integer sc_m_avg, sc_n_avg, sc_t_avg;   // scaled smoothed moisture/nutrient/temp
+    integer sc_health;                      // crop_health 0-255 -> 0-100
+    integer relocate;                       // relocate_recommend flag
+
     always @(negedge clk) begin
         if (!rst && out_valid) begin
             ts_i = out_timestamp;
 
-            // ---- D line: continuous data (charts + gauges) -------------------
-            $display("D,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d",
-                     out_timestamp, out_moisture, out_nutrient, out_temp,
-                     out_avg_moisture, out_avg_nutrient, out_avg_temp,
-                     out_pump_on, out_status, out_crop_health);
+            // ---- Scale raw counts (0-4095) into dashboard display units ------
+            // moisture/nutrient: count/5 clamped 0-100 (dry@200->40, off@350->70)
+            // temperature:       count/10            (hot@400->40C, cold@100->10C)
+            sc_m_raw = out_moisture     / 5;  if (sc_m_raw > 100) sc_m_raw = 100;
+            sc_n_raw = out_nutrient     / 5;  if (sc_n_raw > 100) sc_n_raw = 100;
+            sc_t_raw = out_temp         / 10;
+            sc_m_avg = out_avg_moisture / 5;  if (sc_m_avg > 100) sc_m_avg = 100;
+            sc_n_avg = out_avg_nutrient / 5;  if (sc_n_avg > 100) sc_n_avg = 100;
+            sc_t_avg = out_avg_temp     / 10;
+            // crop_health 0-255 -> 0-100 (wide multiply first, then divide)
+            sc_health = (out_crop_health * 100) / 255;
+            // relocate: still CRITICAL with a poor scaled-health score despite action
+            relocate  = (out_status == 2'd2 && sc_health < 35) ? 1 : 0;
 
-            // ---- E line: discrete event (timestamped event log) --------------
-            if (out_event_id != 4'd0)
-                $display("E,%0d,%0s", out_event_timestamp, ev_name(out_event_id));
+            // ---- 17-field dashboard CSV row (docs/INTERFACES.md 3) -----------
+            // Field order EXACTLY matches the printed header (see initial block).
+            $display("%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d",
+                     out_timestamp,
+                     sc_m_raw, sc_n_raw, sc_t_raw,
+                     sc_m_avg, sc_n_avg, sc_t_avg,
+                     out_pump_on, out_dose_nutrient,
+                     out_alert_nutrient, out_alert_weed, out_alert_heat,
+                     out_alert_frost, out_alert_anomaly,
+                     out_status, sc_health, relocate);
+            $fflush;
 
             // ---- ALIGNMENT SELF-CHECK: every field on this D line is from ts_i
             // Raw is delayed +3, avg +2, decision +0; if the delay lines are
@@ -196,17 +223,14 @@ module edge_analytics_tb;
                          ts_i, out_avg_temp, avg8_t(ts_i));
             end
 
-            // ---- Highlighted single-sample alignment proof (pump-ON sample) --
-            // Its raw moisture, its 8-sample average, and the pump decision it
-            // triggered ALL appear together on this one D line.
+            // ---- Single-sample alignment proof (pump-ON sample), SILENT ------
+            // On the PUMP_ON sample the raw moisture, its 8-sample average and
+            // the pump decision it triggered must all belong to ts_i.  Kept as a
+            // silent self-check (prints ONLY on mismatch) so the CSV stream that
+            // pipes to the dashboard stays clean.
             if (out_event_id == 4'd1) begin // PUMP_ON
                 exp_m  = rm[ts_i];
                 exp_am = avg8_m(ts_i);
-                $display("  >> ALIGNMENT PROOF @ts=%0d : raw_moisture=%0d  avg_moisture=%0d  pump_on=%0d",
-                         ts_i, out_moisture, out_avg_moisture, out_pump_on);
-                $display("     (fed raw at ts=%0d was %0d [+3 delay], its 8-sample avg is %0d [+2 delay],",
-                         ts_i, exp_m, exp_am);
-                $display("      avg<200 -> dry -> pump_on=1 [decision +0] : one sample, one D line.)");
                 if (out_moisture !== exp_m || out_avg_moisture !== exp_am || out_pump_on !== 1'b1) begin
                     errors = errors + 1;
                     $display("  ** FAIL alignment proof mismatch @ts=%0d", ts_i);
@@ -224,6 +248,12 @@ module edge_analytics_tb;
         $dumpvars(0, edge_analytics_tb);
 
         errors = 0;
+
+        // ---- Print the 17-field dashboard CSV header ONCE ----------------
+        // Field order here is the single source of truth; the per-cycle row in
+        // the negedge block prints these same fields in this exact order.
+        $display("timestamp,moisture_raw,nutrient_raw,temp_raw,moisture_avg,nutrient_avg,temp_avg,pump_on,dose_nutrient,alert_nutrient,alert_weed,alert_heat,alert_frost,alert_anomaly,status,crop_health,relocate_recommend");
+        $fflush;
 
         // ---- Build the story trace (index = timestamp) -------------------
         // NOTE ON WARM-UP: the 8-sample moving_avg buffer starts at 0, so during

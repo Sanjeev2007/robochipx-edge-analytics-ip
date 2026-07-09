@@ -35,6 +35,25 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   stub feed. `SYNTHESIS_TASKS.md` is now synthesis-only. `WORKFLOW.md` branch table updated.
 
 ### Added
+- **Phase 5.5 — egress reconciliation to the dashboard's 17-field CSV**
+  (`edge_analytics_tb.v` ONLY — **no `.v` module changed**): replaced the two-line
+  `D`/`E` stream with the dashboard teammate's contract
+  (`robochipx_dashboard_handoff/VERILOG_DASHBOARD_CONTRACT.md`) so their finished
+  tkinter UI works unchanged.
+  - Header printed ONCE, then one 17-field row per `out_valid` cycle in the exact
+    order: `timestamp, moisture_raw, nutrient_raw, temp_raw, moisture_avg,
+    nutrient_avg, temp_avg, pump_on, dose_nutrient, alert_nutrient, alert_weed,
+    alert_heat, alert_frost, alert_anomaly, status, crop_health, relocate_recommend`.
+  - **Count → display-unit scaling** (in the testbench, RTL untouched):
+    moisture/nutrient = `count/5` clamped 0–100; temp = `count/10`; crop_health =
+    `health*100/255` (wide `integer` multiply → no truncation); status stays numeric
+    0/1/2; pump/dose/alert_* pass through; `relocate_recommend = status==2 &&
+    scaled_health<35`. `$fflush` after each row so the stream pipes live.
+  - The Phase-5 latency-alignment self-check is **kept but silent** (prints only on a
+    mismatch), and the pump-ON alignment proof narrative was made silent too, so the
+    stdout stream is clean 17-field CSV the dashboard can ingest directly.
+  - Updated `INTERFACES.md §3` to own the 17-field CSV contract (field glossary +
+    scaling formulas + note that raw counts are scaled to display units, RTL unchanged).
 - **Phase 5 — `edge_analytics_top.v`** (integration + live-stream egress): the
   top level that chains the four EXISTING blocks
   `sensor_collector → smoothing_stage → analytics_engine → output_analytics`.
@@ -191,6 +210,23 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   machine-health-monitor concept.
 
 ### Verified
+- **Phase 5.5 CSV egress** — recompiled the full chip and ran the story trace
+  (`iverilog -o simulation.vvp edge_analytics_top.v output_analytics.v
+  analytics_engine.v smoothing_stage.v moving_avg.v sensor_collector.v
+  edge_analytics_tb.v && vvp simulation.vvp`). **RESULT: PASS (0 errors)** — the
+  alignment self-check still passes after the testbench-only egress change.
+  - Output = one header line + **56 rows, every row exactly 17 comma-separated
+    fields**; moisture/nutrient/crop_health all within 0–100, temp within 0–50,
+    status ∈ {0,1,2}. Range scan found no out-of-range values.
+  - Story samples read correctly in display units: ts=24 dry-spell
+    (`moisture_avg=39`, `pump_on=1`, status WARNING); ts=28 recovery
+    (`moisture_avg=86`, `pump_on=0`, status SAFE, health 100); ts=38 nutrient-low
+    (`dose_nutrient=1`, `alert_nutrient=1`); ts=50 heat (`temp_avg=42`,
+    `alert_heat=1`). Warm-up ts=0 shows the expected transient CRITICAL.
+  - **Dashboard parser sanity-check:** ran the dashboard's own `parse_sample()` on
+    the header + several rows — the header is skipped (returns `None`) and every row
+    parsed into a `Sample` with `status` mapped to SAFE/WARNING/CRITICAL. The
+    dashboard ingests our stream unchanged.
 - Compiled and simulated the FULL integrated chip successfully
   (`iverilog -o simulation.vvp edge_analytics_top.v output_analytics.v
   analytics_engine.v smoothing_stage.v moving_avg.v sensor_collector.v

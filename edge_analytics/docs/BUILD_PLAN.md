@@ -152,7 +152,7 @@
 - **Done when:** `vvp simulation.vvp` prints a correct, aligned `D`/`E` stream ready to
   pipe into Python.
 
-## Phase 5.5 — Egress reconciliation to the dashboard's CSV format   Status: ⬜   (DO BEFORE Phase 6)
+## Phase 5.5 — Egress reconciliation to the dashboard's CSV format   Status: ✅ done + simulated
 - **Owner:** RTL lead. **Depends on:** Phase 5.
 - **Why:** the dashboard teammate built to a different contract (see `memory.md §10`).
   We adopt THEIR format so their finished UI works unchanged. **Testbench-only change —
