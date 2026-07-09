@@ -183,11 +183,18 @@ _(Last live snapshot. Update when the situation changes.)_
     tb for now. Top-level integration (tap `output_analytics`'s `event_id/event_timestamp/
     status/crop_health` into `comms_tx`) is a later step, bundled with the Phase 6 re-capture.
 - **NEXT ACTIONS (RESUME POINT):** Phases 1–5.5 + **8A** done. Continue Phase 8, still
-  **do NOT do Phase 6 yet** (final demo/waveform/dashboard/schematic capture is the LAST
-  step, run ONCE on the feature-complete chip). Remaining Phase 8 build order:
-  **8D edge-win number (uses `comms_tx.msg_count`) → 8C joint fusion → regenerate schematic
-  (8G) → 8F TEDA**, then wire `comms_tx` into the top and run the final Phase 6 capture on
-  the canonical story-trace.
+  **do NOT do Phase 6 yet** (final capture is the LAST step, run ONCE on the
+  feature-complete chip). **CORRECTED build order** (fixes a dependency: 8D needs
+  `comms_tx.msg_count` over the real story trace → integration must come BEFORE 8D and
+  before the schematic re-gen, so both show the complete chip):
+  1. **8F TEDA** (`adaptive_anomaly.v`, NEW standalone module — de-risk the hardest/math-y
+     block early, verify in isolation like 8A).
+  2. **8C joint fusion** (modify `analytics_engine` `crop_health` — careful, verified code).
+  3. **INTEGRATION** — wire `analytics_engine`(+8C fusion, +8F anomaly) → `output_analytics`
+     → `comms_tx` into `edge_analytics_top`.
+  4. **8D edge-win number** (now `msg_count` is real over the story trace) — print-only in tb.
+  5. **Regenerate schematic (8G)** — now shows the full feature-complete chip.
+  6. **Phase 6** final capture on the canonical story-trace.
 
 ## 11. 🟣 EVALUATION FEEDBACK → DIFFERENTIATOR PIVOT (Phase 8 tier)
 _A judge reviewed the project and said it's **"too common — just automation, no unique
