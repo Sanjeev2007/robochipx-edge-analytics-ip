@@ -19,6 +19,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   (overview, architecture, quick-start, status, docs index). Doc references to
   "the README rules" now point to `CLAUDE.md`.
 
+### Repository & process (cont.)
+- **Split the data role out of synthesis:** new `DATA_TASKS.md` (branch `data`) owns
+  the canonical demo story-trace, sensor calibration (count→real-unit), and a dashboard
+  stub feed. `SYNTHESIS_TASKS.md` is now synthesis-only. `WORKFLOW.md` branch table updated.
+
 ### Added
 - **Phase 4 — `output_analytics.v`** (mandatory feature #4): the clean, registered
   actuator/alert bus that turns the analytics_engine decisions into the signals the

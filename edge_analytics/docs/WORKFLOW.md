@@ -7,7 +7,8 @@ Everyone works on their own **branch** and merges into `main` via a Pull Request
 | Task | Branch | Task sheet |
 |---|---|---|
 | A build phase (RTL) | `phase3-analytics`, `phase4-output`, … | `BUILD_PLAN.md` |
-| Synthesis + story-trace | `synthesis` | `SYNTHESIS_TASKS.md` |
+| Synthesis + HW reports | `synthesis` | `SYNTHESIS_TASKS.md` |
+| Demo data & calibration | `data` | `DATA_TASKS.md` |
 | Dashboard | `dashboard` | `DASHBOARD_TASKS.md` |
 | Presentation / docs | `presentation` | `PRESENTATION_TASKS.md` |
 
