@@ -152,6 +152,35 @@
 - **Done when:** `vvp simulation.vvp` prints a correct, aligned `D`/`E` stream ready to
   pipe into Python.
 
+## Phase 5.5 — Egress reconciliation to the dashboard's CSV format   Status: ⬜   (DO BEFORE Phase 6)
+- **Owner:** RTL lead. **Depends on:** Phase 5.
+- **Why:** the dashboard teammate built to a different contract (see `memory.md §10`).
+  We adopt THEIR format so their finished UI works unchanged. **Testbench-only change —
+  do NOT modify any `.v` module.** Their contract:
+  `edge_analytics/robochipx_dashboard_handoff/VERILOG_DASHBOARD_CONTRACT.md`.
+- **Change `edge_analytics_tb.v`:** replace the `D`/`E` `$display` with the dashboard's
+  **17-field CSV**. Print the header ONCE, then one row per `out_valid` cycle:
+  ```
+  timestamp,moisture_raw,nutrient_raw,temp_raw,moisture_avg,nutrient_avg,temp_avg,pump_on,dose_nutrient,alert_nutrient,alert_weed,alert_heat,alert_frost,alert_anomaly,status,crop_health,relocate_recommend
+  ```
+  from the top's aligned bundle, **with scaling** (raw counts → display units). Use an
+  `integer`/wide temp for the multiplies to avoid truncation; `$fflush` after each row.
+- **Scaling (tunable defaults — data person's calibration can refine later):**
+  - `moisture_raw/avg`  = count / 5      (clamp 0–100)   → dry@200 ≈ 40%, pump-off@350 ≈ 70%
+  - `nutrient_raw/avg`  = count / 5      (clamp 0–100)
+  - `temp_raw/avg`      = count / 10                      → hot@400 ≈ 40°C, cold@100 ≈ 10°C
+  - `crop_health`       = health * 100 / 255             (0–255 → 0–100)
+  - `status`            = leave numeric 0/1/2 (dashboard maps to SAFE/WARNING/CRITICAL)
+  - `pump_on, dose_nutrient, alert_*` = pass through 0/1 from the bundle
+  - `relocate_recommend` = 1 when `status==2 && scaled_health < 35`, else 0
+- **Update `INTERFACES.md §3`** to this 17-field CSV format (the dashboard now owns the
+  egress contract); keep a short note that raw counts are scaled to display units.
+- **Verify:** `vvp simulation.vvp | head -5` → a header line then rows of exactly 17
+  comma-separated fields; moisture/nutrient/health in 0–100, temp ~0–50, status in {0,1,2}.
+  Bonus: sanity-check the dashboard's `parse_sample()` accepts a row.
+- **Done when:** the sim emits valid 17-field CSV the dashboard parser ingests. (Live
+  integration `vvp simulation.vvp | python3 edge_agri_dashboard.py` happens at Phase 6.)
+
 ## Phase 6 — full demo + handoffs   (all mandatory, integrated)   Status: ⬜
 - **Owner:** RTL lead. **Depends on:** Phase 5 + the VERIFIED canonical story-trace
   (from the data role, validated by the lead against the real RTL).
