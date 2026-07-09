@@ -45,10 +45,59 @@ python3 stub_stream.py | python3 dashboard.py
 ```
 Later this is swapped for the real `vvp simulation.vvp | ...`.
 
+## Task 4 — CROP + SOIL PROFILE DATA (judge-suggested feature)
+A judge suggested per-plant data (nutrition / water needs). We're adding a `crop_profile`
+lookup so the chip's thresholds adapt per **crop** and per **soil type**. Your job: gather
+the real agronomic numbers (with sources) into a small table the RTL lead turns into a ROM.
+
+For **~4 representative crops × 3 soil types (sandy / loam / clay)**, produce these setpoints:
+`moisture_target`, `nutrient_target` (NPK), `temp_hi`, `temp_lo`, `depletion_baseline`.
+
+**Pull from these authoritative, free sources (cite which value came from where):**
+- **FAO-56 "Crop Evapotranspiration"** (Allen et al. 1998) → crop coefficient `Kc` +
+  **allowable-depletion fraction `p`** (how far soil water drops before irrigating).
+- **USDA NRCS** → field capacity / wilting point / **available water capacity by soil texture**.
+- **Land-grant extension guides** (e.g. UC Davis, Iowa State) → per-crop **N-P-K** targets.
+- **Agronomy cardinal-temperature tables** → per-crop min / optimal / max growth temps.
+
+**Deliverable:** a table of the real-unit values + their **sources**, PLUS the same values
+**scaled to our 0–4095 sensor range** (document the conversion, e.g. 50 %VWC = 4095). Hand it
+to the RTL lead (for `crop_profile.v`) and add the sources to the References slide.
+
 ## Done when
 - The canonical trace exists as concrete number lists (given to RTL lead).
 - The count→real-unit calibration is documented (given to dashboard person).
 - `stub_stream.py` runs and emits valid `D`/`E` lines for the whole story.
+- The crop+soil profile table (real units + sources + 0–4095 scaling) is delivered.
+
+---
+
+## 🤖 ChatGPT prompt for Task 4 (crop + soil profile data) — paste this in
+
+```
+I'm on a hackathon team building a Verilog chip for smart agriculture. The chip reads soil
+MOISTURE, NUTRIENT (NPK), and TEMPERATURE and decides when to irrigate / fertilize / alert.
+We want to make its thresholds CONFIGURABLE PER CROP and PER SOIL TYPE. I'm the data person
+— I don't code; I gather real agronomic numbers WITH SOURCES.
+
+Give me a table for 4 representative crops (e.g. tomato, wheat, rice, lettuce) crossed with
+3 soil textures (sandy, loam, clay). For each crop (and noting soil effects), give:
+  - ideal soil MOISTURE target / irrigation trigger — use FAO-56 allowable-depletion
+    fraction p and crop coefficient Kc; note how soil texture (USDA field capacity /
+    available water capacity: sandy drains fast, clay holds water) shifts it,
+  - NUTRIENT (N-P-K) target — from university agricultural extension soil-test guides,
+  - ideal TEMPERATURE band (min / optimal / max growth temps) — from agronomy cardinal-
+    temperature references,
+  - an expected water DEPLETION rate note (fast for sandy, slow for clay).
+CITE the source for each value (FAO-56, USDA NRCS, which extension service, etc.).
+
+Then give me the SAME values SCALED to a 12-bit sensor range 0-4095, using:
+  moisture 0-4095 = 0-100 %VWC, temperature 0-4095 = 0-50 C, nutrient 0-4095 = 0-1000 ppm.
+Show the conversion so it's reproducible. Output one clean table of real units + sources,
+and one table of the 0-4095 scaled values, ready to hand to a hardware engineer.
+```
+Send both tables (real-units+sources, and the 0–4095 scaled version) to the RTL lead, and
+give the source list to the slides person for the References slide.
 
 ---
 

@@ -44,7 +44,38 @@
 | edge-win quantification (8D) | Count samples-processed vs packets-transmitted → % data / radio-on saved | Proof the edge design pays off |
 | `predictor` (8B, lowest pri) | Extrapolate the moisture-depletion slope (divider-free) → warn *before* dry-out | Predictive / trend analytics |
 
+### Tier 1.6 — JUDGE-RESPONSIVE BONUS: crop + soil profiles (proposed)
+> A judge suggested collecting per-plant data (nutrition / water needs). Implementing a
+> judge's own idea is a strong credibility signal. Replaces the dropped predict-dry feature.
+
+| Module / task | Role | Bonus |
+|---|---|---|
+| `crop_profile.v` (proposed) | ROM: `{crop_id, soil_id}` → `{moisture_target, nutrient_target, temp_hi, temp_lo, depletion_baseline}` feeding `analytics_engine`. Makes the one-size-fits-all thresholds **configurable per crop AND soil**. | Productization / config; judge-responsive |
+
+**Where the data comes from (real, citable — itself a slide-9 reference):**
+- **FAO-56 "Crop Evapotranspiration"** (Allen et al. 1998) — per-crop crop-coefficient `Kc`
+  + **allowable-depletion fraction `p`** → the dry-trigger + `depletion_baseline`.
+- **USDA NRCS soil data** — field capacity / wilting point / **available water capacity (AWC)
+  by soil texture** (sand / loam / clay) → the **soil axis**.
+- **Land-grant university extension guides** — per-crop **N-P-K** soil-test recommendations →
+  `nutrient_target`.
+- **Agronomy cardinal-temperature tables** (extension / FAO) — per-crop min/opt/max growth
+  temps → `temp_hi` / `temp_lo`.
+- **Scaling:** map real units → our 0–4095 sensor range with a **documented** conversion
+  (e.g. 50 %VWC = 4095 → 25 % target ≈ 2048). Profile = "FAO/USDA figures, scaled." Honest.
+- **Story synergy:** profile = agronomy defaults baked in silicon (static knowledge); **TEDA
+  self-tunes around them per field** (adaptive). Static + adaptive together.
+- **Cost/order:** `analytics_engine` thresholds become input PORTS (currently params); do
+  AFTER 8D. Data-gathering is a **data-teammate task** (`DATA_TASKS.md` Task 4, ChatGPT-ready).
+
 ### Tier 3 — STRETCH / wow (only if ahead of schedule)
+- **⭐ Virtual-chip visualization (the "showcasing" solve):** run our REAL Verilog in
+  **DigitalJS Online** (`digitaljs.tilk.eu`) → interactive Yosys-synthesized gate circuit;
+  toggle inputs, watch signals/registers light up = "watch the chip process data virtually."
+  Authentic (our netlist, not a mock). Pair with EDA Playground / EPWave waveforms.
+  ⚠️ **NOT Wokwi/Tinkercad** — those simulate Arduino/ESP MCUs running C, **cannot run our
+  Verilog**; using one as "our chip" at a chip-design event is a fatal credibility risk. A
+  Wokwi mock is allowed ONLY as the sensor/actuator *deployment context*, clearly labelled.
 - **Multi-zone:** replicate the pipeline for N plants/zones + aggregate (scalability story).
 - **UART realism:** serialize `comms_tx` alert packets to real bytes (`uart_tx.v`).
 - **Low-power story:** clock-gate the datapath when idle (real edge concern).

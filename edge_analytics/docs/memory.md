@@ -248,8 +248,33 @@ _(Last live snapshot. Update when the situation changes.)_
   3. ✅ **INTEGRATION** — `adaptive_anomaly` + `comms_tx` wired into `edge_analytics_top` — DONE, verified.
   4. **← NEXT: 8D edge-win number** (now `msg_count` is REAL over the story trace: 3 packets /
      66 samples on-chip) — print-only in the tb, compute % data / radio-on saved vs streaming.
+     ⚠️ **Fix the warm-up FALSE FROST packet (ts=0) BEFORE 8D** — the ts=0 caretaker packet is
+     a moving-avg fill transient; it inflates the packet count 8D reports. Gate `comms_tx`
+     `in_valid` with a warm-up-done signal in `edge_analytics_top.v` (radio silent until the
+     8-sample filter settles) — top file ONLY, no verified module touched.
   5. **Regenerate schematic (8G)** — now shows the full feature-complete chip.
   6. **Phase 6** final capture on the canonical story-trace.
+
+- **RECENT DECISIONS (post-integration, {2026-07-09}):**
+  - **CROP + SOIL PROFILE — proposed feature (replaces the dropped predict-dry).** Judge
+    suggested collecting per-plant data → we make thresholds configurable per `crop_id` +
+    `soil_id` via a small `crop_profile.v` ROM → `{moisture_target, nutrient_target, temp_hi,
+    temp_lo, depletion_baseline}` feeding `analytics_engine`. **Data sources (real, citable):**
+    FAO-56 (crop Kc + allowable-depletion p), USDA NRCS (field capacity / AWC by soil texture),
+    land-grant extension guides (per-crop NPK), agronomy cardinal-temp tables. Scale real units
+    → 0–4095 with a documented mapping. **Cost:** `analytics_engine` thresholds become input
+    PORTS (currently params) — bounded change, defaults must reproduce verified behavior
+    (built-in regression). Do AFTER 8D + once schematic underway. Data-gathering = a task for
+    the ChatGPT-only data teammate (see `DATA_TASKS.md` Task 4). Spec home: `PROBLEM_STATEMENT.md`.
+  - **SHOWCASING = "virtual chip processing data."** User wanted a Wokwi/Tinkercad model.
+    ⚠️ **Wokwi/Tinkercad simulate MCUs (Arduino/ESP/Pico) running C — they CANNOT run our
+    Verilog.** Presenting an Arduino mock as "our chip" at a CHIP-DESIGN hackathon = fatal
+    credibility risk. **Honest route that achieves the same goal → DigitalJS Online
+    (digitaljs.tilk.eu):** paste our REAL Verilog → Yosys-synthesized INTERACTIVE gate circuit,
+    toggle inputs, watch signals/registers light up = genuinely "watch the chip process data."
+    Pair with EDA Playground / EPWave waveforms (8G). Optional Wokwi mock allowed ONLY as the
+    sensor/actuator *deployment context*, clearly labelled "analytics = our Verilog IP, shown
+    separately" — never as the chip itself.
 
 ## 11. 🟣 EVALUATION FEEDBACK → DIFFERENTIATOR PIVOT (Phase 8 tier)
 _A judge reviewed the project and said it's **"too common — just automation, no unique

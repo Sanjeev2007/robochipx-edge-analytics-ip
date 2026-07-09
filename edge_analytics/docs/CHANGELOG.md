@@ -5,6 +5,19 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Planning — Crop/soil profiles + showcasing direction (post-integration)
+- **Crop + soil profile — proposed feature** (replaces dropped predict-dry). `crop_profile.v`
+  ROM makes thresholds configurable per `crop_id` + `soil_id`. **Data sources** documented:
+  FAO-56 (Kc + depletion `p`), USDA NRCS (AWC by soil texture), extension NPK guides, agronomy
+  cardinal temps; scaled to 0–4095. Added to `ROADMAP.md` (Tier 1.6), `PROBLEM_STATEMENT.md`,
+  and a ChatGPT-ready data-gathering task (`DATA_TASKS.md` Task 4). Build AFTER 8D.
+- **Showcasing = "virtual chip processing data" → DigitalJS Online**, NOT Wokwi/Tinkercad
+  (those run Arduino/ESP C, cannot run our Verilog; using one as "our chip" = credibility risk
+  at a chip event). DigitalJS shows our REAL synthesized netlist interactively. Added to
+  `ROADMAP.md` Tier 3 + `PRESENTATION_TASKS.md`.
+- **Integration follow-up flagged:** the ts=0 FROST caretaker packet is a moving-avg warm-up
+  transient — gate `comms_tx` valid until the filter settles BEFORE Phase 8D counts packets.
+
 ### Planning — Grill-session decisions (refined the Phase-8 differentiator)
 Stress-tested the differentiator plan. Decisions locked (full record: `memory.md §11`):
 - **Differentiator = on-chip triage + quantified sparseness, NOT "sends a message."**
