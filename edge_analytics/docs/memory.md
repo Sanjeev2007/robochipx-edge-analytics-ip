@@ -47,7 +47,7 @@ asking).** RTL `.v` files live at `edge_analytics/`; docs at `edge_analytics/doc
 - `gtkwave` — NOT installed yet. `brew install --cask gtkwave` when we want to
   view waveforms visually. Console `$display` output works without it.
 
-## 4. Inner-loop commands (per README)
+## 4. Inner-loop commands (per CLAUDE.md)
 ```bash
 cd edge_analytics
 iverilog -o simulation.vvp <design>.v <testbench>.v   # compile
@@ -56,7 +56,7 @@ gtkwave dump.vcd                                       # view waveform
 ```
 Every testbench must `$dumpfile("dump.vcd")` + `$dumpvars` so waveforms exist.
 
-## 5. Code rules (from README)
+## 5. Code rules (from CLAUDE.md — repo dev conventions, auto-loaded by agents)
 - Synthesizable Verilog only; avoid software-like constructs.
 - Explicit plain-English comments on every module (inputs/outputs/registers/logic).
 - No code dumps — one small block at a time, each with its own testbench.

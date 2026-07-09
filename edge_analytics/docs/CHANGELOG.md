@@ -14,6 +14,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   `WORKFLOW.md` documents the branch-per-task → PR-into-`main` flow.
 - Expanded `BUILD_PLAN.md` Phase 3 with the full analytics spec and added the
   analytics params to `INTERFACES.md` §5.
+- **README split:** the old `README.MD` (agent/code instructions) → `CLAUDE.md`
+  (auto-loaded by Claude agents in this repo); new project `README.md` written
+  (overview, architecture, quick-start, status, docs index). Doc references to
+  "the README rules" now point to `CLAUDE.md`.
 
 ### Added
 - **Phase 3 — `analytics_engine.v`** (mandatory feature #3 + anomaly / sensor-fusion

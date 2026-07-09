@@ -14,7 +14,7 @@
 4. `docs/CHANGELOG.md` — what's already done.
 
 **Rules while working:**
-- Follow the README code rules (synthesizable, commented, `clk`/`rst`, one small
+- Follow the `CLAUDE.md` code rules (synthesizable, commented, `clk`/`rst`, one small
   block + its own testbench, VCD dump).
 - Build against `INTERFACES.md` signal names/widths EXACTLY. If you must change the
   contract, update `INTERFACES.md` and shout about it in the changelog.
