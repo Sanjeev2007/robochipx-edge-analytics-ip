@@ -1,0 +1,42 @@
+// Clean, slide-ready architecture block diagram of the Edge Analytics IP.
+// Hand-authored (readable) — NOT the raw netlist. Render:
+//   dot -Tsvg synthesis/architecture.dot -o synthesis/architecture.svg
+//   dot -Tpng -Gdpi=150 synthesis/architecture.dot -o synthesis/architecture.png
+digraph edge_analytics_ip {
+    rankdir=LR;
+    bgcolor="white";
+    node  [fontname="Helvetica", fontsize=13, style="filled,rounded", shape=box, penwidth=1.4];
+    edge  [fontname="Helvetica", fontsize=10, color="#555555", penwidth=1.4];
+    graph [fontname="Helvetica", labelloc="t", fontsize=18,
+           label="Edge Analytics IP  —  on-chip pipeline (soil moisture · nutrient · temperature)"];
+
+    // --- inputs ---
+    sensors [label="3 field sensors\nmoisture · nutrient · temp", fillcolor="#eceff1", shape=box, style="filled"];
+
+    // --- pipeline core (mandatory features) ---
+    collect [label="sensor_collector\n(sample + timestamp)", fillcolor="#e3f2fd"];
+    smooth  [label="smoothing_stage\n3× moving-average\n(divider-free)", fillcolor="#e3f2fd"];
+    engine  [label="analytics_engine\nthresholds + temp-comp weed\n+ JOINT correlated fusion", fillcolor="#e3f2fd"];
+    outp    [label="output_analytics\nactuator / alert bus\n(pump hysteresis)", fillcolor="#e3f2fd"];
+
+    // --- differentiators (highlighted) ---
+    teda    [label="adaptive_anomaly ★\nTEDA self-tuning anomaly\n(3 DSP multipliers)", fillcolor="#fff3e0", color="#e65100", penwidth=2.2];
+    comms   [label="comms_tx ★\nTier-2 caretaker radio\n(sparse, event-triggered)", fillcolor="#fff3e0", color="#e65100", penwidth=2.2];
+
+    // --- outputs ---
+    tier1   [label="TIER 1 — local actuation\npump · doser · alerts\n(on-device, instant)", fillcolor="#e8f5e9", color="#2e7d32"];
+    tier2   [label="TIER 2 — human alert\n1 tiny packet + ACTION\n→ caretaker (98% fewer TX)", fillcolor="#e8f5e9", color="#2e7d32"];
+
+    // --- flow ---
+    sensors -> collect -> smooth;
+    smooth  -> engine;
+    smooth  -> teda   [label="same smoothed set"];
+    engine  -> outp;
+    teda    -> outp   [label="anomaly", color="#e65100"];
+    outp    -> tier1;
+    outp    -> comms  [label="qualifying event"];
+    comms   -> tier2  [color="#e65100"];
+
+    { rank=same; teda; engine; }
+    { rank=same; tier1; comms; }
+}
