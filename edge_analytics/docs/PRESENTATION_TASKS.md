@@ -55,13 +55,13 @@ differentiators are the STARS. Panels:
 | **weed-vs-evaporation callout** | temp-compensated weed detection | derive: alert flags + moisture rate |
 | **"COMBINED STRESS caught" badge** | joint/correlated fusion | derive: status>0 with NO single alert set |
 | **TEDA self-tuning indicator** | adaptive anomaly ("learned this field's normal") | `alert_anomaly` (already merged) |
-| ⭐ **"Caretaker's Phone"** | two-tier triage — silent, buzzes ~3× with an ACTION | **new `C,` line (Phase 8D)** |
+| ⭐ **"Tier-2 Radio Transmitter"** (built as a radio, not a phone) | two-tier triage — silent by design, fires an alert packet only on a real event, with an ACTION | **new `C,` line (Phase 8D)** |
 | ⭐ **"Dumb node vs Our chip" counter** + battery bars | the 85% edge-win, made dramatic | **counters (Phase 8D)** |
 | event log w/ timestamps | the story timeline | `E,` lines |
 
 The two ⭐ panels are the whole point — they turn the invisible differentiators into the most
-dramatic thing on screen (watch the dumb-node counter race to 66 while our chip stays silent and
-fires 2 precise, actionable alerts). Feasibility: only the caretaker packets need new stream data
+dramatic thing on screen (watch the dumb-node counter race to 223 while our chip stays silent and
+fires 6 precise, actionable alerts → ~97% fewer). Feasibility: only the caretaker packets need new stream data
 (the `C,` line from 8D — DONE); everything else is presentation logic on the existing 17-field
 `D,` line. The frozen `D,` contract is untouched — we only ADD line types.
 
@@ -86,7 +86,7 @@ down is superseded by THIS mapping.
 | 1 | **TITLE** (Team ID / Track / Team name / Members) | Fill the fields. Add a one-line tagline: *"An Edge-Analytics IP for Precision Agriculture — analytics in silicon, not the cloud."* Track = Chip Design. |
 | 2 | **PROBLEM STATEMENT** (core problem · significance · users · gaps) | IoT drowns in raw data; cloud = latency/bandwidth/privacy/**battery drain** (SDG 9 & 11). Users: farmers + a remote caretaker km away. **Gaps (set up our answers):** (a) dumb nodes stream every reading → drain the radio; (b) generic automation doesn't adapt per crop/soil/node; (c) hand-tuned thresholds can't scale to 1000s of fields. |
 | 3 | **METHODOLOGY PROPOSED** (solution · how it resolves · **innovative/distinctive features**) ⭐ | THE DIFFERENTIATOR SLIDE. Solution = on-chip collect→smooth→analyze→act, two-tier response. Distinctive features = the 4: **① TEDA self-tuning anomaly** (adaptive, no hand-tuning → scales); **② joint/correlated fusion** (combinations, not single sensors); **③ two-tier triage → ~85–93% fewer transmissions** (same crop outcome); **④ it's real silicon**. (+ crop/soil profile line if built — "judge-suggested".) |
-| 4 | **TECHNICAL APPROACH** (architecture · tools/algorithms · workflow · testing · metrics) | The **block diagram**: sensors → collector → smoothing (moving_avg×3) → analytics_engine (fusion + temp-comp weed) **+** adaptive_anomaly (TEDA) → output_analytics (**Tier-1** actuators/alerts) → comms_tx (**Tier-2** sparse radio). Algorithms: divider-free moving-avg, TEDA Chebyshev, hysteresis, latency-aligned pipeline. Workflow: Mac sim (iverilog/gtkwave) → GitHub → Windows synth (Vivado). Testing: per-module TBs + top-level story-arc, self-checking. **Metrics: 3 packets / 66 samples (8D), synth util/timing/power, 0 alignment errors.** |
+| 4 | **TECHNICAL APPROACH** (architecture · tools/algorithms · workflow · testing · metrics) | The **block diagram**: sensors → collector → smoothing (moving_avg×3) → analytics_engine (fusion + temp-comp weed) **+** adaptive_anomaly (TEDA) → output_analytics (**Tier-1** actuators/alerts) → comms_tx (**Tier-2** sparse radio). Algorithms: divider-free moving-avg, TEDA Chebyshev, hysteresis, latency-aligned pipeline. Workflow: Mac — iverilog sim + Yosys synth → GitHub. Testing: per-module TBs + top-level story-arc, self-checking. **Metrics: 6 packets / 223 samples ≈ ~97% fewer TX (8D); ~1,245 LUT / 1,163 FF / 3 DSP ≈ 6% of Artix-7; 0 alignment errors. (No Fmax/power — Yosys ≠ P&R.)** |
 | 5 | **TECH STACK** *(template mislabels this "Final Reflections" — its body asks for tools/hardware/platforms/languages, so treat as Tech Stack)* | Languages: Verilog + Python. Tools: Icarus Verilog, GTKWave, Yosys(+graphviz), Vivado/Quartus, Tkinter, Git/GitHub. Hardware target: FPGA/ASIC IP core (sim-proven, synthesizable); sensors = moisture/NPK/temp. Platform: local Mac + Windows synth — **no cloud (that's the point)**. |
 | 6 | **EXPECTED DELIVERABLE — Prototype/Model** | The Edge Analytics IP (synthesizable Verilog) + **the synthesized schematic** ("real circuit, not a script") + utilization/timing/power. |
 | 7 | **EXPECTED DELIVERABLE — Research paper/Docs** | The `docs/` suite (PROBLEM_STATEMENT, INTERFACES, BUILD_PLAN, FEATURES, CHANGELOG) + `papers/` research summaries + architecture writeup. |

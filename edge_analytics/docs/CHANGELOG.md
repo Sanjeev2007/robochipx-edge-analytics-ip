@@ -5,6 +5,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### 📌 AS-BUILT SNAPSHOT (latest — read this first)
+- **Demo:** `demo/mission_control.html` — 223-sample story, **6 caretaker packets ≈ ~97% fewer
+  transmissions** (6 of 223). Tier-2 visual is a **Radio Transmitter** (silent-by-design, shows the
+  64-bit alert packet) — this **REPLACED the earlier "Caretaker's Phone"** wording used in older
+  entries below. 8 always-visible feature tiles + ACTIVE-ALERT banner + 5 charts; UI scaled +25%.
+- **Silicon:** Yosys synth = **~1,245 LUT / 1,163 FF / 3 DSP ≈ ~6% of Artix-7** (`synthesis/`).
+  **No Fmax/power** (Yosys ≠ P&R). Slide content in `docs/SLIDE_CONTENT.md` reflects all of the above.
+- Older entries in this file are the chronological build log; where they say "phone" / "66 samples"
+  / "98%", the AS-BUILT numbers above supersede them.
+
 ### Added — Phase 8G (part 1): synthesis + schematics via Yosys on macOS ("it's real silicon")
 - **Synthesized the full chip with Yosys 0.66 locally** (no Vivado/Windows needed). New `synthesis/`:
   - **`SYNTHESIS_REPORT.md`** — write-up + reproducible commands + an honesty note.
@@ -90,12 +100,18 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   64-bit packet), ending 223 vs 6 → 98%.
 - **Polish pass (user feedback):** (1) whole UI scaled **+25%** for the projector via `zoom:1.25` on
   `.app` with width/height compensated (`calc(100vw/1.25)`), so it still fits exactly one screen with no
-  horizontal scroll; (2) sensor + analytics **charts enlarged** and the left column scrolls vertically
-  when they overflow (no need to see them all at a glance); (3) each Live-Features tile gained a small
-  **ⓘ info icon** with a hover tooltip explaining that parameter (rendered outside the zoom layer so it
-  never clips); (4) the timeline **progress bar is now smooth** — replaced the stepped native range with
-  a custom fill+knob that transitions linearly over each step interval during playback (instant when
+  horizontal scroll; (2) the **3 sensor graphs now `flex:1` to fill their panel** (moisture / nutrient /
+  temp share the full panel height, no dead space) while the derived Analytics charts (crop-health,
+  depletion-rate) stay fixed; column still scrolls if it overflows; (3) each Live-Features tile gained a
+  small **ⓘ info icon** with a hover tooltip explaining that parameter (rendered outside the zoom layer
+  so it never clips); (4) the timeline **progress bar is now smooth** — replaced the stepped native range
+  with a custom fill+knob that transitions linearly over each step interval during playback (instant when
   scrubbing/paused). Verified: 0 console errors, app renders exactly 1440×900, `scrollWidth==innerWidth`.
+- **Clarified for the record (not a code change):** the stream carries **17 D-line fields but only 3 are
+  physical sensors** (moisture / nutrient / temp, each drawn raw+smoothed = 6 fields); the other 11 are
+  timestamp + the chip's computed decisions (pump, doser, 5 alerts, status, crop_health, relocate) — all
+  17 are already on the dashboard (sensors→graphs, decisions→tiles/gauge/badge). Three sensors is the
+  deliberate frozen count (`NUM_CH=3`; "fusion smarter, not wider" — no humidity channel).
 
 ### Added — ⭐ WEB Mission Control (6a) — the hero demo (`demo/mission_control.html`)
 - **Built `demo/mission_control.html`** — ONE self-contained screen that REPLAYS the real captured

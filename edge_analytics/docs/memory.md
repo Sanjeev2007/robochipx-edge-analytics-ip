@@ -271,9 +271,10 @@ _(Last live snapshot. Update when the situation changes.)_
        CDN/libraries; the real D/C/M stream is EMBEDDED + parsed offline, no runtime fetch) that
        REPLAYS the captured sim as an animated story. All panels from the `PRESENTATION_TASKS.md`
        map: raw-vs-smoothed SVG charts · status+health gauge · pump/doser pulse · weed-vs-evaporation
-       callout · ⭐ combined-stress fusion badge (ts 24–25) · TEDA anomaly indicator · ⭐ Caretaker's
-       Phone (silent, buzzes on the 2 `C,` packets w/ severity+event+ACTION) · ⭐ dumb-vs-chip counter
-       (66 vs 2 → 97%, battery bars) · timeline log. Auto-play + play/pause/restart + speed + scrubber
+       callout · ⭐ combined-stress fusion badge · TEDA anomaly indicator · ⭐ Tier-2 Radio
+       Transmitter (silent by design; fires the `C,` alert packets w/ severity+event+ACTION — was
+       initially a "Caretaker's Phone", later REPLACED by the radio) · ⭐ dumb-vs-chip counter
+       (AS-BUILT 223 vs 6 → ~97%, battery bars) · timeline log. Auto-play + play/pause/restart + speed + scrubber
        + keyboard + phase narration; first 10 rows dimmed "filters settling". **VERIFIED in gstack
        /browse: 0 console errors, phone fires at ts=38 (NUTRIENT_LOW) + ts=56 (SENSOR_ANOMALY),
        counter ends 66/2/97%.** No `.v` or tkinter file touched. This is the projector demo (slide 8)
@@ -304,6 +305,14 @@ _(Last live snapshot. Update when the situation changes.)_
          it** (dumb 223 vs our 6 → 97%, battery bars dropped). Fixed the janky horizontal scroll (no
          page-level x-scroll; wide content scrolls inside its box). Verified in /browse: 0 errors, all 6
          TX moments + fusion + suppression-under-heat render correctly.
+         - **POLISH pass ({2026-07-10}, later):** whole UI **+25%** (`zoom:1.25` on `.app`, width/height
+           compensated so it still fits one screen, no h-scroll); **smooth playback progress bar** (custom
+           fill+knob transitions over each step vs the old stepped native range); each feature tile has an
+           **ⓘ info tooltip** (rendered outside the zoom layer, no clipping); the **3 sensor graphs
+           `flex:1` to fill their panel** (no dead space). NOTE for future agents: the D-line has **17
+           fields but only 3 SENSORS** (moisture/nutrient/temp, raw+smoothed); the other 14 are timestamp
+           + decisions (pump/doser/5 alerts/status/health/relocate) — all shown as tiles/gauge/badge, not
+           graphs. Don't add a 4th sensor (breaks the frozen 17-field contract; NUM_CH=3).
      - **← THEN: 6b — tkinter upgrade** (live proof): add the missing panels to the teammate's
        `robochipx_dashboard_handoff/edge_agri_dashboard.py`, kept on the live `vvp | python` pipe.
        Run AFTER 6a. This is the "and here it is live off the actual chip" moment.
@@ -330,8 +339,10 @@ _(Last live snapshot. Update when the situation changes.)_
     about the impressive half. Fix = ONE live screen where every feature lights up on the story
     trace, differentiators as the STARS. Panels: raw-vs-smoothed charts · status/health · pump ·
     **weed-vs-evaporation callout** · **"combined stress caught" fusion badge** · **TEDA
-    self-tuning-anomaly indicator** · ⭐ **"Caretaker's Phone"** (silent, buzzes ~3× with an
-    ACTION) · ⭐ **"Dumb node vs Our chip" transmission counter + battery bars**. Feasibility:
+    self-tuning-anomaly indicator** · ⭐ **"Tier-2 Radio Transmitter"** (built as a radio, NOT a
+    phone — silent by design, transmits the 64-bit alert packet only on a real event, with an
+    ACTION) · ⭐ **"Dumb node vs Our chip" transmission counter + battery bars** (folded into the
+    radio panel). **AS-BUILT: 223 samples / 6 caretaker packets ≈ ~97% fewer TX.** Feasibility:
     almost all panels are DERIVABLE from the existing 17-field `D,` line (fusion badge = status>0
     with no single alert; weed/evap = alert flags + moisture rate); only the caretaker packets
     need the new `C,` line (from 8D). No frozen-contract break. This is the demo centerpiece
