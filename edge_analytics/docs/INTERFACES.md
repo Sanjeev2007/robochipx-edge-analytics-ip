@@ -107,6 +107,26 @@ caretaker (radio/LoRa/GSM gateway), separate from the continuous dashboard telem
 > w/o doser, STATUS_CRITICAL, FROST_RISK, PREDICT_DRY). Machine-handled events
 > (PUMP_ON/OFF) do NOT transmit. A `MSG_GAP` (TUNE) rate-limit blocks same-event spam.
 
+### `edge_analytics_top` — Phase-8 caretaker/anomaly outputs (INTEGRATION)   ✅ wired
+The top level now instantiates `adaptive_anomaly` (8F) in parallel with the engine and
+`comms_tx` (8A) as a side channel. These outputs are IN ADDITION to the aligned D-line
+bundle; they are **NOT** part of the frozen 17-field CSV row (§3) — that contract is
+unchanged. See `edge_analytics_top.v` header for the full latency map.
+| Dir | Signal | Width | Meaning |
+|---|---|---|---|
+| out | `out_anom_ch` | 3 | per-channel TEDA flags (bit c = channel c); delayed +1 so it sits on the t=4 alert-bus cycle — for waveforms/debug |
+| out | `out_msg_valid` | 1 | 1-cycle strobe: a caretaker packet is being transmitted (Tier-2 radio) |
+| out | `out_alert_packet` | 64 | the 64-bit caretaker alert packet (layout §6) |
+| out | `out_msg_count` | 16 | running tally of transmitted caretaker packets (feeds Phase 8D) |
+
+> **Timing:** `comms_tx` is the **async caretaker radio** — its outputs land **+1 vs the
+> aligned D-bundle** (t=5, vs the D row at t=4). This is intentional; the packet is a
+> sparse Tier-2 alert, deliberately NOT aligned into the 17-field telemetry row.
+> **Anomaly merge:** `output_analytics.anomaly` is now fed `ae_anomaly | ta_anomaly`
+> (engine rail check OR the TEDA detector). **Injection:** a TEDA-only anomaly (one the
+> engine's moisture-only rail check misses) is surfaced to the radio as `SENSOR_ANOMALY`
+> only when the merged pipeline reports NONE — the engine/output event always wins.
+
 ---
 
 ## 3. Live stream format (chip → dashboard)  — 17-field CSV, REAL-TIME, no file
@@ -175,6 +195,10 @@ Example: `24,26,60,25,39,60,25,1,0,0,0,0,0,0,1,76,0`
   separate `E` line is no longer streamed.
 - The dashboard parser skips the header, accepts numeric CSV (or key=value debug
   tokens), and maps `status` 0/1/2 → SAFE/WARNING/CRITICAL.
+- **UNCHANGED by the Phase-8 INTEGRATION:** wiring `adaptive_anomaly` + `comms_tx` into the
+  top added NEW top-level ports (§2 `edge_analytics_top` table) but did **NOT** alter this
+  17-field row — same field order/count. The caretaker radio prints only on `#`-prefixed
+  monitor lines (which the parser skips), so the piped stream stays pure 17-field CSV.
 
 ---
 

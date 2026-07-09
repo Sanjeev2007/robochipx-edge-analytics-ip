@@ -328,6 +328,33 @@
   threshold misses, with no false alarms on normal noise. (**Fallback:** if time slips,
   this is the one to defer — frame it via the TEDA-FPGA paper and build if able.)
 
+### Phase 8 INTEGRATION — fold `adaptive_anomaly` (8F) + `comms_tx` (8A) into the top   Status: ✅ done + simulated
+- **Owner:** RTL lead. **Depends on:** 8A, 8C, 8F (all built + verified in isolation).
+  **Modifies ONLY** `edge_analytics_top.v` + `edge_analytics_tb.v` — every RTL sub-module is
+  frozen IP and stays untouched. **Must come BEFORE 8D** (8D needs a REAL `msg_count` over the
+  story trace) and before the 8G schematic re-gen (so both show the complete chip).
+- **Build (all new logic in `edge_analytics_top.v`):**
+  - Instantiate `adaptive_anomaly` IN PARALLEL with `analytics_engine`: same smoothed set
+    (`sm_avg_*`) + `sm_valid`; its registered `anomaly`/`anom_ch` land at **t=3** (same cycle
+    as the engine), no extra alignment.
+  - `anomaly_merged = ae_anomaly | ta_anomaly` → feed `output_analytics.anomaly()` (not the raw
+    engine flag) so `alert_anomaly` reflects BOTH the rail check and the TEDA detector.
+  - Caretaker injection: delay `ta_anomaly` +1 to t=4, edge-detect its 0→1 rise, and build
+    `comms_event_id = (oa_event_id!=NONE) ? oa_event_id : ta_anomaly_rising ? SENSOR_ANOMALY(7) :
+    NONE` (+ matching ts). Engine/output event ALWAYS wins; injection only fills a TEDA-only
+    anomaly the engine's event path never raised.
+  - Instantiate `comms_tx` as a side channel (`in_valid=oa_valid`, `event_id=comms_event_id`,
+    …). Its outputs are +1 vs the D-bundle (t=5) — async radio, NOT in the aligned row.
+  - New top ports: `out_msg_valid`, `out_alert_packet[63:0]`, `out_msg_count[15:0]`,
+    `out_anom_ch[2:0]`.
+- **Testbench:** keep the 17-field CSV row + alignment self-checks EXACTLY; add a `#`-prefixed
+  caretaker-radio decoder + a 3-part INTEGRATION SUMMARY self-check; extend the trace with a
+  nutrient-stuck-HIGH fault so a TEDA-only anomaly reaches the radio.
+- **Done when (✅):** RESULT PASS (0 errors); D-line still 17 fields / 0 alignment errors;
+  ≥1 caretaker packet TX'd and `msg_count` ≪ samples. **Verified: 66 samples, 3 sparse packets
+  (FROST_RISK@0, NUTRIENT_LOW@38, SENSOR_ANOMALY@56 via injection), rate-limit suppressed the
+  flapping rail's 2nd edge.**
+
 ### Phase 8D — quantify the edge win (the number that wins the argument)   Status: ⬜
 - **Owner:** RTL lead + slides (Teammate D). **Depends on:** Phase 8A (`msg_count`).
 - **Goal:** turn "edge saves power/bandwidth" into a HARD number for the pitch.

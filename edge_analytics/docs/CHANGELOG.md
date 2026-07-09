@@ -108,6 +108,58 @@ Stress-tested the differentiator plan. Decisions locked (full record: `memory.md
   `vvp simulation.vvp | python3 …/edge_agri_dashboard.py` is ready to run on the Mac.
 
 ### Added
+- **INTEGRATION — wired `adaptive_anomaly` (8F) + `comms_tx` (8A) into `edge_analytics_top`**
+  (modified **ONLY** `edge_analytics_top.v` + `edge_analytics_tb.v`; every RTL sub-module —
+  `analytics_engine`, `output_analytics`, `comms_tx`, `adaptive_anomaly`, `sensor_collector`,
+  `smoothing_stage`, `moving_avg` — was treated as **frozen IP and left untouched**). The two
+  stand-alone bonus blocks (built + verified in isolation in 8A/8F) are now folded into the
+  live pipeline; the chip's full **two-tier output** (Tier-1 aligned D-line + Tier-2 sparse
+  caretaker radio) runs end-to-end.
+  - **(A) TEDA anomaly in PARALLEL with the engine.** `adaptive_anomaly` is fed the SAME
+    smoothed set (`sm_avg_moisture/nutrient/temp`) + `sm_valid` the engine gets (born t=2);
+    like the engine it registers its outputs, so `ta_anomaly`/`ta_anom_ch` land at **t=3** —
+    the same cycle as the engine's decisions, no extra alignment needed.
+  - **Anomaly merge:** `anomaly_merged = ae_anomaly | ta_anomaly` (both t=3) is what now feeds
+    `output_analytics.anomaly()` (instead of the raw engine `ae_anomaly`), so `alert_anomaly`
+    reflects BOTH the always-on rail-stuck check AND the learned TEDA detector.
+  - **(B) Caretaker event-injection path (the key new wiring).** `output_analytics` emits its
+    event bus at t=4; `ta_anomaly` (t=3) is delayed +1 to line up at t=4 and its 0→1 rising
+    edge is detected there. The comms feed is:
+    `comms_event_id = (oa_event_id != NONE) ? oa_event_id : (ta_anomaly_rising ? SENSOR_ANOMALY(7) : NONE)`
+    with a matching timestamp (real event's stamp, or the sample's own `ts_d3` for an
+    injection). **The engine/output event ALWAYS wins; injection only fills in when the
+    merged pipeline reported NONE** — i.e. a TEDA-only anomaly the engine's event path never
+    raised (that path keys off the raw moisture rail check, not the merged flag).
+  - **(C) `comms_tx` as a side channel:** `in_valid=oa_valid`, `event_id=comms_event_id`,
+    `event_timestamp=`matching ts, `status=oa_status`, `crop_health=oa_crop_health`. Its
+    outputs are **+1 vs the D-bundle (t=5)** — the async caretaker radio, deliberately NOT
+    aligned into the 17-field row.
+  - **New top-level output ports:** `out_msg_valid`, `out_alert_packet[63:0]`,
+    `out_msg_count[15:0]`, and `out_anom_ch[2:0]` (per-channel TEDA flags, delayed +1 to sit on
+    the t=4 alert-bus cycle — for waveforms/debug). All new wires/latencies are commented in
+    plain English per `CLAUDE.md`.
+  - **Testbench (`edge_analytics_tb.v`):** the 17-field CSV row + its alignment self-checks are
+    kept EXACTLY (frozen contract, `INTERFACES.md §3`). Added a `#`-prefixed CARETAKER-RADIO
+    monitor that decodes every `msg_valid` strobe (severity/event/action/health/reserved/ts per
+    §6) and a final INTEGRATION SUMMARY with three self-checks: (a) D-line still 17 fields / 0
+    alignment errors; (b) ≥1 caretaker packet transmitted; (c) `msg_count` ≪ sample count
+    (the sparseness we pitch). Extended the story trace by a **Phase F — nutrient-sensor
+    stuck-HIGH fault** (rail 4095, moisture wet, temp normal): the engine raises no event and
+    its moisture-only rail check misses it, but TEDA flags the outlier → the top INJECTS
+    SENSOR_ANOMALY → the caretaker is paged CHECK_SENSOR. NS 56 → 66.
+  - **VERIFIED — RESULT: PASS (0 errors):**
+    `iverilog -o sim_top.vvp edge_analytics_top.v sensor_collector.v smoothing_stage.v
+    moving_avg.v analytics_engine.v output_analytics.v adaptive_anomaly.v comms_tx.v
+    edge_analytics_tb.v && vvp sim_top.vvp`. **66 samples processed on-chip, exactly 3 sparse
+    caretaker packets** transmitted (msg_count reg = 3, matches strobes counted):
+    - `sev=CRITICAL event=FROST_RISK action=PROTECT_FROST health=70 ts=0` (warm-up transient),
+    - `sev=WARNING event=NUTRIENT_LOW action=MANUAL_FERT health=205 ts=38` (standard path),
+    - `sev=CRITICAL event=SENSOR_ANOMALY action=CHECK_SENSOR health=205 ts=56` (⭐ TEDA-only
+      anomaly reaching the radio via the new INJECTION path). Packet bit-packing verified vs §6
+      (e.g. `372cd00000000038` = sev3|ev7|ac2|health0xCD|resv0|ts0x38). The flapping rail's
+      second edge (ts=63) was correctly **suppressed by the MSG_GAP rate-limit** — anti-spam in
+      action. Stream remains clean 17-field CSV + `#` comment lines; every one of the 66 D rows
+      has exactly 17 fields (0 alignment errors). Dashboard command unchanged conceptually.
 - **Phase 8C — JOINT / CORRELATED fusion** (upgraded `analytics_engine.v` **in place** — the
   ONLY `.v` touched; **port list UNCHANGED** so the top still wires; **no humidity channel**,
   3 channels / frozen 17-field dashboard contract intact). Upgrades fusion from

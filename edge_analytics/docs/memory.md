@@ -74,7 +74,7 @@ Three sensor channels for the demo: **soil moisture, nutrient (NPK), temperature
 | 2b | `smoothing_stage` | Phase 2 wiring: `moving_avg` ×3 (one/channel) + 1-cycle timestamp delay to keep "when" aligned with the smoothed set | ✅ built + simulated |
 | 3 | `analytics_engine` | Thresholds → status; plus depletion-rate check for weed/anomaly | ✅ built + simulated |
 | 4 | `output_analytics` | Registered actuator/alert bus: `pump_on` (hysteresis), `dose_nutrient`, `alert_*`, PUMP_ON/OFF events, status pass-through | ✅ built + simulated |
-| 5 | `edge_analytics_top` | Wire the 4 blocks + latency-alignment delay lines (raw/ts +3, avg +2); aligned output bundle | ✅ built + simulated |
+| 5 | `edge_analytics_top` | Wire the blocks + latency-alignment delay lines (raw/ts +3, avg +2); aligned output bundle. **INTEGRATION done:** now also instantiates `adaptive_anomaly` (parallel, t=3), merges anomaly into `output_analytics`, and hangs `comms_tx` off the event bus with a TEDA-only-anomaly injection path; new top ports `out_msg_valid`/`out_alert_packet[63:0]`/`out_msg_count[15:0]`/`out_anom_ch[2:0]` | ✅ built + simulated (incl. 8A+8F integration) |
 | 5.5 | `edge_analytics_tb` egress | Testbench-only: emit the dashboard's 17-field CSV (header once + row/cycle) with count→display-unit scaling; RTL untouched | ✅ done + simulated |
 | 8A | `comms_tx` ⭐ | **Differentiator:** event-triggered alert packet (severity+action_code) to the remote caretaker; rate-limited; `msg_count`. The "beyond automation" answer | ✅ built + simulated |
 | 8B | `predictor` | Divider-free moisture-slope extrapolation → `predict_dry`/PREDICT_DRY early warning; reuses the weed `dropped` primitive | ⬜ planned |
@@ -226,16 +226,28 @@ _(Last live snapshot. Update when the situation changes.)_
     **Compiled + ran: RESULT PASS (0 errors)** (`iverilog -o simulation.vvp analytics_engine.v
     analytics_engine_tb.v && vvp simulation.vvp`). Full-chip re-compile (top + `edge_analytics_tb.v`)
     also PASSES (0 alignment errors, valid 17-field CSV) — confirming the top still wires.
-- **NEXT ACTIONS (RESUME POINT):** Phases 1–5.5 + **8A + 8F + 8C** done. Continue Phase 8, still
-  **do NOT do Phase 6 yet** (final capture is the LAST step, run ONCE on the
-  feature-complete chip). **CORRECTED build order** (fixes a dependency: 8D needs
-  `comms_tx.msg_count` over the real story trace → integration must come BEFORE 8D and
-  before the schematic re-gen, so both show the complete chip):
+- **✅ INTEGRATION DONE (8A + 8F wired into the top):** modified **ONLY** `edge_analytics_top.v`
+  + `edge_analytics_tb.v` (all RTL sub-modules frozen/untouched). `adaptive_anomaly` now runs in
+  PARALLEL with `analytics_engine` (same smoothed set + `sm_valid`, lands t=3); `anomaly_merged =
+  ae_anomaly | ta_anomaly` feeds `output_analytics.anomaly()` so `alert_anomaly` reflects BOTH
+  detectors; `comms_tx` is a side channel on the t=4 event bus with a **TEDA-only-anomaly
+  injection path** (`comms_event_id = oa_event_id!=NONE ? oa_event_id : ta_anomaly_rising ?
+  SENSOR_ANOMALY(7) : NONE`, engine event always wins). New top ports: `out_msg_valid`,
+  `out_alert_packet[63:0]`, `out_msg_count[15:0]`, `out_anom_ch[2:0]`. TB adds a `#`-prefixed
+  caretaker-radio decoder + an INTEGRATION SUMMARY (D-line 17 fields / 0 align errs; ≥1 packet;
+  msg_count ≪ samples), and a **Phase F nutrient-stuck-HIGH fault** (NS 56→66) that the engine's
+  moisture-only rail check misses but TEDA catches → injected CHECK_SENSOR alert.
+  **VERIFIED RESULT: PASS (0 errors)** — 66 samples, exactly **3 sparse caretaker packets**
+  (FROST_RISK@0 warm-up, NUTRIENT_LOW@38 standard, ⭐ SENSOR_ANOMALY@56 via injection);
+  the rail's 2nd edge @63 was rate-limit-suppressed. 17-field CSV stream stays clean.
+- **NEXT ACTIONS (RESUME POINT):** Phases 1–5.5 + **8A + 8F + 8C + INTEGRATION** done. Continue
+  Phase 8, still **do NOT do Phase 6 yet** (final capture is the LAST step, run ONCE on the
+  feature-complete chip). Remaining build order:
   1. ✅ **8F TEDA** (`adaptive_anomaly.v`) — DONE, verified in isolation.
   2. ✅ **8C joint fusion** (`analytics_engine` `crop_health`+`status`) — DONE, regression + new fusion case pass.
-  3. **INTEGRATION** — wire `analytics_engine`(+8C fusion, +8F anomaly) → `output_analytics`
-     → `comms_tx` into `edge_analytics_top`.
-  4. **8D edge-win number** (now `msg_count` is real over the story trace) — print-only in tb.
+  3. ✅ **INTEGRATION** — `adaptive_anomaly` + `comms_tx` wired into `edge_analytics_top` — DONE, verified.
+  4. **← NEXT: 8D edge-win number** (now `msg_count` is REAL over the story trace: 3 packets /
+     66 samples on-chip) — print-only in the tb, compute % data / radio-on saved vs streaming.
   5. **Regenerate schematic (8G)** — now shows the full feature-complete chip.
   6. **Phase 6** final capture on the canonical story-trace.
 

@@ -37,7 +37,7 @@ module edge_analytics_tb;
     // ---- Parameters (mirror the frozen contract, docs/INTERFACES.md 1) -------
     localparam DATA_WIDTH = 12;
     localparam TS_WIDTH   = 32;
-    localparam NS         = 56;   // number of samples in the story trace
+    localparam NS         = 66;   // number of samples in the story trace
 
     // ---- DUT connections -----------------------------------------------------
     reg                    clk;
@@ -56,6 +56,11 @@ module edge_analytics_tb;
     wire [3:0]             out_event_id;
     wire [TS_WIDTH-1:0]    out_event_timestamp;
     wire                   out_valid;
+    // ---- Phase-8 side outputs (TEDA anomaly + Tier-2 caretaker radio) --------
+    wire [2:0]             out_anom_ch;        // per-channel TEDA flags (t=4, debug)
+    wire                   out_msg_valid;      // caretaker packet strobe (+1 vs D row)
+    wire [63:0]            out_alert_packet;   // 64-bit caretaker alert packet
+    wire [15:0]            out_msg_count;      // running caretaker-packet tally
 
     // ---- Device Under Test ---------------------------------------------------
     edge_analytics_top #(
@@ -75,7 +80,10 @@ module edge_analytics_tb;
         .out_alert_anomaly(out_alert_anomaly),
         .out_status(out_status), .out_crop_health(out_crop_health),
         .out_event_id(out_event_id), .out_event_timestamp(out_event_timestamp),
-        .out_valid(out_valid)
+        .out_valid(out_valid),
+        .out_anom_ch(out_anom_ch),
+        .out_msg_valid(out_msg_valid), .out_alert_packet(out_alert_packet),
+        .out_msg_count(out_msg_count)
     );
 
     // ---- Clock: 10 ns period -------------------------------------------------
@@ -89,6 +97,8 @@ module edge_analytics_tb;
 
     integer k;
     integer errors;
+    integer samples_processed;   // # of valid D-line output cycles (all analytics on-chip)
+    integer caretaker_pkts;      // # of caretaker packets seen on the wire (msg_valid strobes)
 
     // ---- Reference moving-average model (matches moving_avg exactly) ---------
     // moving_avg's buffer is zero-initialised, so at sample ts the average is the
@@ -129,7 +139,7 @@ module edge_analytics_tb;
     endfunction
 
     // ---- event_id -> name (docs/INTERFACES.md 4) ----------------------------
-    function [95:0] ev_name;    // up to 12 chars packed as a string
+    function [127:0] ev_name;   // up to 16 chars packed as a string
         input [3:0] id;
         begin
             case (id)
@@ -141,7 +151,37 @@ module edge_analytics_tb;
                 4'd6: ev_name = "FROST_RISK";
                 4'd7: ev_name = "SENSOR_ANOMALY";
                 4'd8: ev_name = "STATUS_CRITICAL";
+                4'd9: ev_name = "PREDICT_DRY";
                 default: ev_name = "NONE";
+            endcase
+        end
+    endfunction
+
+    // ---- action_code -> name (docs/INTERFACES.md 6 action_code table) -------
+    function [127:0] ac_name;   // up to 16 chars packed as a string
+        input [3:0] code;
+        begin
+            case (code)
+                4'd1: ac_name = "INSPECT_WEED";
+                4'd2: ac_name = "CHECK_SENSOR";
+                4'd3: ac_name = "MANUAL_FERT";
+                4'd4: ac_name = "PROTECT_FROST";
+                4'd5: ac_name = "RELOCATE_REV";
+                4'd6: ac_name = "PRE_IRRIGATE";
+                default: ac_name = "NONE";
+            endcase
+        end
+    endfunction
+
+    // ---- severity -> name (docs/INTERFACES.md 6) ----------------------------
+    function [63:0] sev_name;   // up to 8 chars packed as a string
+        input [3:0] sev;
+        begin
+            case (sev)
+                4'd1: sev_name = "INFO";
+                4'd2: sev_name = "WARNING";
+                4'd3: sev_name = "CRITICAL";
+                default: sev_name = "?";
             endcase
         end
     endfunction
@@ -162,6 +202,7 @@ module edge_analytics_tb;
     always @(negedge clk) begin
         if (!rst && out_valid) begin
             ts_i = out_timestamp;
+            samples_processed = samples_processed + 1;  // one on-chip-processed sample
 
             // ---- Scale raw counts (0-4095) into dashboard display units ------
             // moisture/nutrient: count/5 clamped 0-100 (dry@200->40, off@350->70)
@@ -240,6 +281,45 @@ module edge_analytics_tb;
     end
 
     // =========================================================================
+    // CARETAKER-RADIO MONITOR (Tier-2, Phase 8A comms_tx)
+    //   comms_tx's msg_valid is +1 vs the aligned D row (async radio), so this is
+    //   its OWN negedge monitor - it does NOT gate on out_valid.  Every strobe is
+    //   decoded from the 64-bit packet (fields per docs/INTERFACES.md 6) and
+    //   printed on a '#'-prefixed line so the dashboard's parser skips it and the
+    //   17-field CSV contract stays clean.
+    // =========================================================================
+    reg [3:0]  pk_sev, pk_ev, pk_ac;   // severity / event_code / action_code
+    reg [7:0]  pk_health;              // crop_health carried in the packet
+    reg [11:0] pk_resv;                // reserved (must be 0 for now)
+    reg [31:0] pk_ts;                  // event_timestamp
+
+    always @(negedge clk) begin
+        if (!rst && out_msg_valid) begin
+            // Unpack the 64-bit alert packet, MSB->LSB (docs/INTERFACES.md 6).
+            pk_sev    = out_alert_packet[63:60];
+            pk_ev     = out_alert_packet[59:56];
+            pk_ac     = out_alert_packet[55:52];
+            pk_health = out_alert_packet[51:44];
+            pk_resv   = out_alert_packet[43:32];
+            pk_ts     = out_alert_packet[31:0];
+
+            caretaker_pkts = caretaker_pkts + 1;
+
+            $display("# CARETAKER TX #%0d: sev=%0s event=%0s action=%0s health=%0d ts=%0d (packet=%016h)",
+                     out_msg_count,
+                     sev_name(pk_sev), ev_name(pk_ev), ac_name(pk_ac),
+                     pk_health, pk_ts, out_alert_packet);
+            $fflush;
+
+            // Reserved field sanity: must be zero in v1.
+            if (pk_resv !== 12'd0) begin
+                errors = errors + 1;
+                $display("#  ** FAIL packet reserved field != 0 (got %0h)", pk_resv);
+            end
+        end
+    end
+
+    // =========================================================================
     // STIMULUS
     // =========================================================================
     integer s;
@@ -248,6 +328,8 @@ module edge_analytics_tb;
         $dumpvars(0, edge_analytics_tb);
 
         errors = 0;
+        samples_processed = 0;
+        caretaker_pkts    = 0;
 
         // ---- Print the 17-field dashboard CSV header ONCE ----------------
         // Field order here is the single source of truth; the per-cycle row in
@@ -277,6 +359,17 @@ module edge_analytics_tb;
         for (k = 34; k <= 43; k = k + 1) begin rm[k]=900; rn[k]=200; rt[k]=250; end
         // Phase E - heat stress (avg_temp climbs past 400 -> HEAT_STRESS)
         for (k = 44; k <= 55; k = k + 1) begin rm[k]=900; rn[k]=300; rt[k]=450; end
+        // Phase F - NUTRIENT SENSOR FAULT: the NPK sensor fails stuck-HIGH (railed at
+        //   4095, e.g. shorted to supply).  Moisture is wet (900, pump off) and temp
+        //   back to normal (250), so the engine raises NO event - and the engine's
+        //   fixed rail check only watches MOISTURE, so it MISSES this entirely.  But
+        //   the TEDA detector (Phase 8F) learned this channel's normal (~300) and
+        //   flags the railed reading as an outlier -> ta_anomaly.  Since the merged
+        //   pipeline reports NONE here, the top-level INJECTS a SENSOR_ANOMALY event
+        //   into comms_tx, which pages the caretaker to CHECK_SENSOR.  This is the
+        //   whole point of the integration: a TEDA-only anomaly still reaches the
+        //   Tier-2 radio.  (A steady rail also trips TEDA's always-on rail fast path.)
+        for (k = 56; k <= 65; k = k + 1) begin rm[k]=900; rn[k]=4095; rt[k]=250; end
 
         // ---- Reset, then stream the trace one sample per cycle -----------
         rst = 1; sensors_valid = 0;
@@ -299,11 +392,42 @@ module edge_analytics_tb;
         repeat (8) @(negedge clk);
 
         // ---- Verdict -----------------------------------------------------
+        // Three integration self-checks (all '#'-prefixed so the CSV stays clean):
+        //   (a) the D-line is still a valid 17-field aligned row (0 align errors)
+        //   (b) the caretaker radio actually transmitted at least one packet
+        //   (c) msg_count is MUCH smaller than the sample count (the sparseness we
+        //       pitch: transmit K alerts, not N raw samples)
+        $display("#---------------------------------------------------------");
+        $display("# INTEGRATION SUMMARY (Tier-1 D-line + Tier-2 caretaker radio)");
+        $display("#   samples processed on-chip : %0d", samples_processed);
+        $display("#   caretaker packets TX'd    : %0d (msg_count reg = %0d)",
+                 caretaker_pkts, out_msg_count);
+        // (b) at least one caretaker packet
+        if (caretaker_pkts < 1) begin
+            errors = errors + 1;
+            $display("#  ** FAIL no caretaker packet was transmitted.");
+        end
+        // consistency: the counted strobes must match the module's msg_count reg
+        if (out_msg_count !== caretaker_pkts) begin
+            errors = errors + 1;
+            $display("#  ** FAIL msg_count reg (%0d) != strobes counted (%0d)",
+                     out_msg_count, caretaker_pkts);
+        end
+        // (c) sparseness: caretaker packets must be far fewer than samples (< 1/4).
+        if (!(caretaker_pkts * 4 < samples_processed)) begin
+            errors = errors + 1;
+            $display("#  ** FAIL caretaker channel not sparse (packets %0d vs samples %0d)",
+                     caretaker_pkts, samples_processed);
+        end else begin
+            $display("#   sparseness OK: %0d packets << %0d samples (Tier-2 radio is sparse)",
+                     caretaker_pkts, samples_processed);
+        end
         $display("#---------------------------------------------------------");
         if (errors == 0)
-            $display("# RESULT: PASS - all D-line fields aligned to their sample (0 errors).");
+            $display("# RESULT: PASS - D-line aligned (17 fields), caretaker radio TX'd %0d sparse packet(s), 0 errors.",
+                     caretaker_pkts);
         else
-            $display("# RESULT: FAIL - %0d alignment error(s).", errors);
+            $display("# RESULT: FAIL - %0d error(s).", errors);
         $display("#---------------------------------------------------------");
         $finish;
     end
