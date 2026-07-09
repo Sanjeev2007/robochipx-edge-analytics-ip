@@ -292,7 +292,7 @@
 - **Done when:** a combination-only stress is detected that independent thresholds miss,
   and single-channel behaviour is unchanged.
 
-### Phase 8F — `adaptive_anomaly` (TEDA self-tuning anomaly detector)  ⭐ Status: ⬜
+### Phase 8F — `adaptive_anomaly` (TEDA self-tuning anomaly detector)  ⭐ Status: ✅ built + simulated
 - **Owner:** RTL lead. **Depends on:** Phase 3.  **Interface:** `INTERFACES.md` §7.
   **Backed by:** `papers/` TEDA-FPGA (138 ns, 7.2 MSPS, <7% LUTs) — cite the numbers.
 - **Goal:** replace the fixed rail-stuck `if (avg==0||avg==4095)` with a block that

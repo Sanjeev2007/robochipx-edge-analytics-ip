@@ -108,6 +108,31 @@ Stress-tested the differentiator plan. Decisions locked (full record: `memory.md
   `vvp simulation.vvp | python3 …/edge_agri_dashboard.py` is ready to run on the Mac.
 
 ### Added
+- **Phase 8F — `adaptive_anomaly.v`** (⭐ the researcher-impressive TEDA self-tuning anomaly
+  detector) — a **NEW standalone module; no existing `.v` was modified.** Replaces the fixed
+  rail-stuck anomaly check with a block that **learns each sensor's own normal on-chip and
+  flags statistical outliers**, parameter-free per field. Built exactly to `BUILD_PLAN.md`
+  Phase 8F + `INTERFACES.md` §7.
+  - **Inputs:** `clk`, `rst`, `in_valid`, `avg_moisture[11:0]`, `avg_nutrient[11:0]`,
+    `avg_temp[11:0]`. **Outputs:** `anomaly` (1 = any channel flagged) + `anom_ch[2:0]`
+    (per-channel flags). Both **registered** (1-cycle latency, matches the pipeline).
+  - **TEDA reduced to a divider-free datapath.** Per channel keeps two EMA state registers
+    **μ (mean)** and **V (variance)**, updated by SHIFT, never divide:
+    `diff = x−μ`; `μ' = μ + (diff>>>TEDA_ALPHA)`; `sq = diff*diff` (the ONE multiplier);
+    `V' = V + ((sq−V)>>>TEDA_ALPHA)`. The eccentricity test becomes the Chebyshev form
+    **`(x−μ)² > m²·V`** with `bound = 9·V = (V<<3)+V` for m=`TEDA_SIGMA_M`=3 (shift+add, no
+    extra multiplier). The test uses the **PRE-update** μ,V. Cost/channel = 1 multiplier +
+    a few adders + fixed shifts + comparator + μ/V regs + warm-up counter — the
+    drawable-as-a-real-circuit datapath for Phase-8G (backed by the TEDA-FPGA paper).
+  - **Guards:** warm-up counter suppresses flags until `warm_cnt >= TEDA_WARMUP`(8); the first
+    valid sample PRIMES μ=x, V=0 so the baseline starts at the real signal (not a slow 0-ramp
+    that would inflate V and mask a later spike). The fixed **rail-stuck** check
+    (`x==0||x==4095`) is OR'd in as an always-on fast path so a truly dead sensor trips
+    instantly. Wide (32-bit signed) `sq`/`V`/`bound` → no overflow; fixed-point; all constants
+    are named `parameter`s (`TEDA_SIGMA_M`, `TEDA_ALPHA`, `TEDA_WARMUP`) — no literals.
+  - Synthesizable, `clk`/`rst`-driven, fully commented — per `CLAUDE.md`.
+  - **NOT yet wired into `analytics_engine`** — standalone module + its own tb for now;
+    replacing the engine's fixed rail check with this output is a later integration step.
 - **Phase 8A — `comms_tx.v`** (⭐ the flagship differentiator — event-triggered caretaker
   comms) — a **NEW standalone module; no existing `.v` was modified.** This is the chip's
   **second output tier**: a sparse, machine-to-human alert channel (LoRa/GSM → caretaker's
@@ -309,6 +334,19 @@ Stress-tested the differentiator plan. Decisions locked (full record: `memory.md
   machine-health-monitor concept.
 
 ### Verified
+- **Phase 8F `adaptive_anomaly`** — compiled + ran the standalone module and its testbench
+  (`iverilog -o simulation.vvp adaptive_anomaly.v adaptive_anomaly_tb.v && vvp
+  simulation.vvp`). **RESULT: PASS (0 errors).** The testbench feeds moisture at **~600±12**
+  then a single **660 spike (NOT a rail)**, with nutrient (300) and temp (250) held steady:
+  - The learned TEDA detector **flagged the spike** — `anomaly=1`, `anom_ch=001` (moisture
+    channel ONLY) — while the OLD fixed rail-check (`x==0||x==4095`) returned **no** on the
+    same sample. The tb prints the head-to-head: *TEDA=YES, fixed=no ⇒ TEDA caught an
+    off-baseline outlier the fixed check would miss.*
+  - **No false flags** during the 8-sample warm-up (early noisy statistics suppressed) or on
+    the ordinary ±12 jitter after warm-up; the steady nutrient/temp channels never flagged;
+    and the detector returned quiet on the samples after the spike (no lingering flag).
+  - VCD (`dump.vcd`) dumped. Confirms the self-calibrating detector catches a wrong-but-in-
+    range outlier a fixed threshold misses, with zero false alarms on normal noise.
 - **Phase 8A `comms_tx`** — compiled + ran the standalone module and its testbench
   (`iverilog -o simulation.vvp comms_tx.v comms_tx_tb.v && vvp simulation.vvp`).
   **RESULT: PASS (0 errors).** The story (WEED → PUMP_ON → NUTRIENT_LOW → NUTRIENT_LOW

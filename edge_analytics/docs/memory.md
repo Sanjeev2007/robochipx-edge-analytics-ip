@@ -80,7 +80,7 @@ Three sensor channels for the demo: **soil moisture, nutrient (NPK), temperature
 | 8B | `predictor` | Divider-free moisture-slope extrapolation → `predict_dry`/PREDICT_DRY early warning; reuses the weed `dropped` primitive | ⬜ planned |
 | 8C | JOINT fusion | Upgrade `analytics_engine` fusion from OR-of-thresholds → correlated/interaction-aware `crop_health` (NO humidity channel — keeps 3-ch dashboard contract) | ⬜ planned |
 | 8D | edge-win metric | Testbench-only: samples-processed vs packets-transmitted → % data / radio-on saved | ⬜ planned |
-| 8F | `adaptive_anomaly` ⭐ | TEDA self-tuning anomaly: running μ+σ² per channel, Chebyshev eccentricity, divider-free (cross-mult). Replaces fixed rail-check. The researcher-impressive block | ⬜ planned |
+| 8F | `adaptive_anomaly` ⭐ | TEDA self-tuning anomaly: running μ+σ² per channel, Chebyshev eccentricity, divider-free (cross-mult). Replaces fixed rail-check. The researcher-impressive block | ✅ built + simulated |
 | 8G | visualization | 3 artifacts: gtkwave/EPWave waveforms + block diagram + **Vivado/Yosys synthesized schematic** ("show the chip") | ⬜ planned |
 
 ## 7. Key design decisions
@@ -182,13 +182,32 @@ _(Last live snapshot. Update when the situation changes.)_
   - **NOT yet wired into `edge_analytics_top`** — `comms_tx` is a standalone module + its own
     tb for now. Top-level integration (tap `output_analytics`'s `event_id/event_timestamp/
     status/crop_health` into `comms_tx`) is a later step, bundled with the Phase 6 re-capture.
-- **NEXT ACTIONS (RESUME POINT):** Phases 1–5.5 + **8A** done. Continue Phase 8, still
+- **✅ Phase 8F DONE (the researcher-impressive TEDA block — `adaptive_anomaly`):** built
+  `adaptive_anomaly.v` as a NEW standalone module (no existing `.v` touched). Per-channel
+  learns its own μ (mean) + V (variance) as EMA state regs, updated by SHIFT (`>>>TEDA_ALPHA`,
+  weight 1/8), never a divide. The TEDA eccentricity test reduces to the divider-free
+  Chebyshev form **`(x−μ)² > m²·V`** — ONE multiplier (`diff²`) + adders + a shift-and-add
+  `bound = 9·V = (V<<3)+V` (m=3) + comparator per channel. Test uses the PRE-update μ,V.
+  - **Guards:** warm-up counter suppresses flags until `warm_cnt >= TEDA_WARMUP`(8); the first
+    valid sample PRIMES μ=x, V=0 (baseline starts at the real signal, not a 0-ramp that would
+    inflate V for ~40 samples and mask the spike). Fixed **rail-stuck** check (`x==0||x==4095`)
+    OR'd in as an always-on fast path so a dead sensor still trips instantly. Outputs
+    `anomaly` (any channel) + `anom_ch[2:0]` (per-channel) are REGISTERED (1-cycle latency).
+    All widths named params; fixed-point; wide (32-bit signed) sq/V/bound → no overflow.
+  - **`adaptive_anomaly_tb.v`** feeds moisture at ~600±12 then a **660 spike (NOT a rail)**,
+    nutrient/temp steady. Self-check: **RESULT PASS (0 errors)** — TEDA flags the spike on
+    channel 0 ONLY (`anom_ch=001`) while the OLD fixed rail-check MISSES it; NO false flags in
+    warm-up or on normal jitter; quiet again after the spike. Compiled+ran (`iverilog -o
+    simulation.vvp adaptive_anomaly.v adaptive_anomaly_tb.v && vvp simulation.vvp`), VCD dumped.
+  - **NOT yet wired into `analytics_engine`** — standalone module + its own tb for now.
+    Replacing the engine's fixed rail check with this `anomaly`/`anom_ch` is a later
+    integration step (bundled with 8C + the Phase-6 re-capture).
+- **NEXT ACTIONS (RESUME POINT):** Phases 1–5.5 + **8A + 8F** done. Continue Phase 8, still
   **do NOT do Phase 6 yet** (final capture is the LAST step, run ONCE on the
   feature-complete chip). **CORRECTED build order** (fixes a dependency: 8D needs
   `comms_tx.msg_count` over the real story trace → integration must come BEFORE 8D and
   before the schematic re-gen, so both show the complete chip):
-  1. **8F TEDA** (`adaptive_anomaly.v`, NEW standalone module — de-risk the hardest/math-y
-     block early, verify in isolation like 8A).
+  1. ✅ **8F TEDA** (`adaptive_anomaly.v`) — DONE, verified in isolation.
   2. **8C joint fusion** (modify `analytics_engine` `crop_health` — careful, verified code).
   3. **INTEGRATION** — wire `analytics_engine`(+8C fusion, +8F anomaly) → `output_analytics`
      → `comms_tx` into `edge_analytics_top`.
