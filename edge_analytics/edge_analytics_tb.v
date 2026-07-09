@@ -37,7 +37,7 @@ module edge_analytics_tb;
     // ---- Parameters (mirror the frozen contract, docs/INTERFACES.md 1) -------
     localparam DATA_WIDTH = 12;
     localparam TS_WIDTH   = 32;
-    localparam NS         = 66;   // number of samples in the story trace
+    localparam NS         = 223;  // number of samples in the richer story trace (~210)
 
     // ---- DUT connections -----------------------------------------------------
     reg                    clk;
@@ -101,6 +101,28 @@ module edge_analytics_tb;
     integer caretaker_pkts;      // # of caretaker packets seen on the wire (msg_valid strobes)
     integer warmup_pkts;         // # of caretaker packets fired at ts=0 (warm-up transient) - should be 0
     integer pct_saved;           // % transmissions saved vs a naive stream-everything node
+
+    // ---- Story-phase windows (ts ranges) for the FEATURE self-checks --------
+    // The trace is built so each feature fires inside its window; the checks at
+    // the end assert the narrative actually happened (weed in the weed phases,
+    // NO weed in the slow dry-spell, weed SUPPRESSED under heat, fusion catches
+    // the combined case, frost/nutrient/anomaly all fire).  Keep these in sync
+    // with the stimulus phases below.
+    localparam DRY1_LO  =  21, DRY1_HI  =  46;   // gentle dry-spell (pump, NOT weed)
+    localparam WEED1_LO =  55, WEED1_HI =  66;   // weed incident #1
+    localparam HEAT_LO  =  75, HEAT_HI  = 104;   // heat wave (weed SUPPRESSED)
+    localparam FROST_LO = 113, FROST_HI = 134;   // cold snap / frost
+    localparam NUT_LO   = 143, NUT_HI   = 164;   // nutrient depletion
+    localparam COMB_LO  = 171, COMB_HI  = 192;   // combined-stress / joint fusion
+    localparam ANOM_LO  = 197, ANOM_HI  = 208;   // sensor anomaly (TEDA catch)
+    localparam WEED2_LO = 209, WEED2_HI = 218;   // weed incident #2
+
+    // ---- Feature observation flags (set during the live-stream monitor) ------
+    integer saw_weed1, saw_weed2;       // weed fired in each weed window
+    integer weed_in_dry1, weed_in_heat; // weed WRONGLY fired in dry-spell / heat (must stay 0)
+    integer saw_heat, saw_frost;        // heat / frost alerts fired in their windows
+    integer saw_nut, saw_anom;          // nutrient / anomaly alerts fired
+    integer saw_combined;               // status>0 with EVERY single alert clear (joint fusion)
 
     // ---- Reference moving-average model (matches moving_avg exactly) ---------
     // moving_avg's buffer is zero-initialised, so at sample ts the average is the
@@ -188,6 +210,21 @@ module edge_analytics_tb;
         end
     endfunction
 
+    // ---- Deterministic small +/-5 jitter (makes the RAW dashboard columns wiggle
+    //   like real sensors).  A fixed pattern keyed by index -> fully reproducible
+    //   across regenerations (no RNG).  The reference avg8 model reads the SAME
+    //   arrays, so jitter is accounted for automatically in the alignment checks.
+    function integer jit;
+        input integer i;
+        begin
+            case (i % 10)
+                0: jit =  3;  1: jit = -4;  2: jit =  2;  3: jit = -1;  4: jit =  5;
+                5: jit = -3;  6: jit =  1;  7: jit = -5;  8: jit =  4;  9: jit = -2;
+                default: jit = 0;
+            endcase
+        end
+    endfunction
+
     // =========================================================================
     // LIVE STREAM + SELF-CHECK  (runs at negedge so all posedge updates settled)
     // =========================================================================
@@ -231,6 +268,24 @@ module edge_analytics_tb;
                      out_alert_frost, out_alert_anomaly,
                      out_status, sc_health, relocate);
             $fflush;
+
+            // ---- FEATURE OBSERVATION (per story-phase window) ----------------
+            // Record whether each feature fired inside its window so the end-of-run
+            // self-checks can assert the narrative really happened (and that weed
+            // did NOT fire where it must not).
+            if (ts_i >= WEED1_LO && ts_i <= WEED1_HI && out_alert_weed)     saw_weed1     = 1;
+            if (ts_i >= WEED2_LO && ts_i <= WEED2_HI && out_alert_weed)     saw_weed2     = 1;
+            if (ts_i >= DRY1_LO  && ts_i <= DRY1_HI  && out_alert_weed)     weed_in_dry1  = 1;
+            if (ts_i >= HEAT_LO  && ts_i <= HEAT_HI  && out_alert_weed)     weed_in_heat  = 1;
+            if (ts_i >= HEAT_LO  && ts_i <= HEAT_HI  && out_alert_heat)     saw_heat      = 1;
+            if (ts_i >= FROST_LO && ts_i <= FROST_HI && out_alert_frost)    saw_frost     = 1;
+            if (ts_i >= NUT_LO   && ts_i <= NUT_HI   && out_alert_nutrient) saw_nut       = 1;
+            if (ts_i >= ANOM_LO  && ts_i <= ANOM_HI  && out_alert_anomaly)  saw_anom      = 1;
+            // combined / joint fusion: WARNING-or-worse while EVERY single-channel
+            // alert stays clear (the OR-of-thresholds detector would miss this).
+            if (ts_i >= COMB_LO && ts_i <= COMB_HI && out_status > 0 &&
+                !out_alert_nutrient && !out_alert_weed && !out_alert_heat &&
+                !out_alert_frost && !out_alert_anomaly)                     saw_combined  = 1;
 
             // ---- ALIGNMENT SELF-CHECK: every field on this D line is from ts_i
             // Raw is delayed +3, avg +2, decision +0; if the delay lines are
@@ -342,6 +397,8 @@ module edge_analytics_tb;
         samples_processed = 0;
         caretaker_pkts    = 0;
         warmup_pkts       = 0;
+        saw_weed1 = 0; saw_weed2 = 0; weed_in_dry1 = 0; weed_in_heat = 0;
+        saw_heat  = 0; saw_frost = 0; saw_nut = 0; saw_anom = 0; saw_combined = 0;
 
         // ---- Print the 17-field dashboard CSV header ONCE ----------------
         // Field order here is the single source of truth; the per-cycle row in
@@ -349,39 +406,116 @@ module edge_analytics_tb;
         $display("timestamp,moisture_raw,nutrient_raw,temp_raw,moisture_avg,nutrient_avg,temp_avg,pump_on,dose_nutrient,alert_nutrient,alert_weed,alert_heat,alert_frost,alert_anomaly,status,crop_health,relocate_recommend");
         $fflush;
 
-        // ---- Build the story trace (index = timestamp) -------------------
-        // NOTE ON WARM-UP: the 8-sample moving_avg buffer starts at 0, so during
-        // the first ~8 samples every average RAMPS UP from 0 (a filter-fill
-        // artifact, inherent to moving_avg - not a wiring issue).  We keep the
-        // healthy baseline WET (400 -> avg settles 400, above the 350 pump-off
-        // point) so that once the window is full the pump sits cleanly OFF, and
-        // the FIRST genuine PUMP_ON happens in the dry-spell below.
+        // ---- Build the RICHER multi-incident story trace (index = timestamp) ---
+        // Every feature is exercised, spread out so the dashboard stays lively for
+        // ~210 samples.  Steady segments carry a small +/-5 jit(k) so the RAW
+        // columns wiggle; ramps/spikes use exact values so the trigger math is easy
+        // to reason about.  The moving-average window (8) starts at 0, so the first
+        // ~10 samples are FILTER WARM-UP (averages ramp up; the Tier-2 radio is
+        // gated silent there by the top-level warm-up gate).
         //
-        // Phase A - healthy & wet (fill the window; pump settles OFF)
-        for (k = 0; k <= 9;  k = k + 1) begin rm[k]=400; rn[k]=300; rt[k]=250; end
-        // Phase B - gentle dry-spell (~18/sample: gentle enough NOT to look like
-        //           a weed, but long enough that avg crosses 200 -> dry -> PUMP_ON)
-        rm[10]=385; rm[11]=367; rm[12]=349; rm[13]=331; rm[14]=313; rm[15]=295;
-        rm[16]=277; rm[17]=259; rm[18]=241; rm[19]=223; rm[20]=205; rm[21]=187;
-        rm[22]=169; rm[23]=151; rm[24]=133; rm[25]=115;
-        for (k = 10; k <= 25; k = k + 1) begin rn[k]=300; rt[k]=250; end
-        // Phase C - irrigation works: moisture jumps back, avg passes 350 -> PUMP_OFF
-        for (k = 26; k <= 33; k = k + 1) begin rm[k]=900; rn[k]=300; rt[k]=250; end
-        // Phase D - nutrient runs low (avg_nutrient < 250 -> NUTRIENT_LOW + dose)
-        for (k = 34; k <= 43; k = k + 1) begin rm[k]=900; rn[k]=200; rt[k]=250; end
-        // Phase E - heat stress (avg_temp climbs past 400 -> HEAT_STRESS)
-        for (k = 44; k <= 55; k = k + 1) begin rm[k]=900; rn[k]=300; rt[k]=450; end
-        // Phase F - NUTRIENT SENSOR FAULT: the NPK sensor fails stuck-HIGH (railed at
-        //   4095, e.g. shorted to supply).  Moisture is wet (900, pump off) and temp
-        //   back to normal (250), so the engine raises NO event - and the engine's
-        //   fixed rail check only watches MOISTURE, so it MISSES this entirely.  But
-        //   the TEDA detector (Phase 8F) learned this channel's normal (~300) and
-        //   flags the railed reading as an outlier -> ta_anomaly.  Since the merged
-        //   pipeline reports NONE here, the top-level INJECTS a SENSOR_ANOMALY event
-        //   into comms_tx, which pages the caretaker to CHECK_SENSOR.  This is the
-        //   whole point of the integration: a TEDA-only anomaly still reaches the
-        //   Tier-2 radio.  (A steady rail also trips TEDA's always-on rail fast path.)
-        for (k = 56; k <= 65; k = k + 1) begin rm[k]=900; rn[k]=4095; rt[k]=250; end
+        // NARRATIVE (phase -> ts):
+        //   A warm-up + healthy .......... 0..20    (settle filters, SAFE baseline)
+        //   B dry spell -> PUMP -> recover  21..46   (hysteresis; gentle, NOT a weed)
+        //   C healthy ..................... 47..54
+        //   D WEED #1 (sharp drop) ........ 55..66   (temp normal -> weed fires)
+        //   E healthy ..................... 67..74
+        //   F HEAT wave + fast drop ....... 75..104  (weed SUPPRESSED = evaporation)
+        //   G healthy ..................... 105..112
+        //   H COLD snap / FROST ........... 113..134 (avg_temp < 100 -> FROST_RISK)
+        //   I healthy ..................... 135..142
+        //   J NUTRIENT low ................ 143..164 (avg_nutrient < 250 -> dose+alert)
+        //   K healthy ..................... 165..170
+        //   L COMBINED stress / fusion .... 171..192 (marginal dry + marginal hot)
+        //   M healthy ..................... 193..196
+        //   N SENSOR anomaly (TEDA) ....... 197..208 (nutrient rail HIGH, engine misses)
+        //   O WEED #2 (deeper drop) ....... 209..218
+        //   P healthy tail ................ 219..222
+        //
+        // TEDA NOTE: the self-tuning anomaly block has near-zero learned variance on
+        // a channel that has been quiet, so its FIRST abrupt excursion reads as an
+        // outlier.  To keep the Tier-2 radio sparse and on-message, every transition
+        // that should NOT be a "sensor anomaly" is made GENTLE (<= ~12 counts/sample,
+        // like the dry-spell) so the running mean tracks it; only the WEED crashes,
+        // the heat-driven fast drop, and the intended nutrient RAIL are abrupt.
+
+        // Default: everything healthy & wet (avg settles moisture 400>350 pump-off,
+        // nutrient 300>250, temp 250 in-band).  Phases below overwrite their spans.
+        for (k = 0; k < NS; k = k + 1) begin
+            rm[k] = 400 + jit(k);
+            rn[k] = 300 + jit(k+3);
+            rt[k] = 250 + jit(k+7);
+        end
+
+        // --- B: gentle dry-spell (~14/sample: crosses DRY=200 without looking like
+        //        a weed), then GENTLE irrigation recovery (avg passes PUMP_OFF=350
+        //        -> pump OFF) that does NOT overshoot-and-fall (which would trip weed).
+        rm[21]=386; rm[22]=372; rm[23]=358; rm[24]=344; rm[25]=330; rm[26]=316;
+        rm[27]=302; rm[28]=288; rm[29]=274; rm[30]=260; rm[31]=246; rm[32]=232;
+        rm[33]=218; rm[34]=204; rm[35]=190; rm[36]=176; rm[37]=162; rm[38]=148; rm[39]=134;
+        rm[40]=300; rm[41]=420; rm[42]=460; rm[43]=445; rm[44]=430; rm[45]=415; rm[46]=402;
+
+        // --- D: WEED #1.  Sharp 4-sample moisture crash (avg falls > RATE=100 over
+        //        HIST=4), temp normal -> weed fires; gentle recovery keeps avg > DRY
+        //        so the weed is NOT masked as a pump event.
+        rm[59]=150; rm[60]=150; rm[61]=150; rm[62]=150;
+        rm[63]=250; rm[64]=360; rm[65]=400; rm[66]=400;
+
+        // --- F: HEAT wave.  Temp climbs GENTLY into HOT (>400) FIRST (so the temp
+        //        channel is not itself flagged as an anomaly), THEN moisture drops
+        //        FAST while already hot -> the depletion is evaporation, so the weed
+        //        flag is SUPPRESSED (temp-compensation) while alert_heat fires.
+        rt[75]=262; rt[76]=274; rt[77]=286; rt[78]=298; rt[79]=310; rt[80]=322;
+        rt[81]=334; rt[82]=346; rt[83]=358; rt[84]=370; rt[85]=382; rt[86]=394;
+        rt[87]=406; rt[88]=418; rt[89]=430; rt[90]=442; rt[91]=454; rt[92]=460;
+        rt[93]=460; rt[94]=460; rt[95]=460; rt[96]=460; rt[97]=460; rt[98]=460;
+        rt[99]=460; rt[100]=460; rt[101]=400; rt[102]=340; rt[103]=290; rt[104]=250;
+        rm[93]=340; rm[94]=290; rm[95]=250; rm[96]=230; rm[97]=225; rm[98]=225;
+        rm[99]=228; rm[100]=230; rm[101]=300; rm[102]=360; rm[103]=400; rm[104]=400;
+
+        // --- H: COLD snap.  Temp glides below COLD=100 -> cold -> FROST_RISK packet,
+        //        then warms back up.  Gentle descent so TEDA tracks it (no anomaly).
+        rt[113]=238; rt[114]=226; rt[115]=214; rt[116]=202; rt[117]=190; rt[118]=178;
+        rt[119]=166; rt[120]=154; rt[121]=142; rt[122]=130; rt[123]=118; rt[124]=106;
+        rt[125]=94;  rt[126]=82;  rt[127]=70;  rt[128]=60;  rt[129]=60;  rt[130]=60;
+        rt[131]=60;  rt[132]=120; rt[133]=190; rt[134]=250;
+
+        // --- J: NUTRIENT depletion.  avg_nutrient glides below NUT=250 -> dose_nutrient
+        //        (Tier-1) AND a NUTRIENT_LOW caretaker page (Tier-2).  Gentle so the
+        //        TEDA nutrient channel tracks the drop rather than flagging it.
+        rn[143]=292; rn[144]=284; rn[145]=276; rn[146]=268; rn[147]=260; rn[148]=252;
+        rn[149]=244; rn[150]=236; rn[151]=228; rn[152]=220; rn[153]=212; rn[154]=204;
+        rn[155]=196; rn[156]=188; rn[157]=185; rn[158]=185; rn[159]=185; rn[160]=185;
+        rn[161]=230; rn[162]=270; rn[163]=300; rn[164]=300;
+
+        // --- L: COMBINED stress / JOINT fusion.  Moisture eased GENTLY into the
+        //        "getting dry" band [DRY=200, DRY_WARN=260); temp eased GENTLY into the
+        //        "getting warm" band (HOT_WARN=360, HOT=400].  EACH channel alone stays
+        //        under its hard threshold (so every single-channel alert is clear), yet
+        //        the JOINT view raises WARNING - the case OR-of-thresholds misses.
+        rm[171]=390; rm[172]=378; rm[173]=366; rm[174]=354; rm[175]=342; rm[176]=330;
+        rm[177]=318; rm[178]=306; rm[179]=294; rm[180]=282; rm[181]=270; rm[182]=258;
+        rm[183]=248; rm[184]=245; rm[185]=245; rm[186]=245; rm[187]=245; rm[188]=245;
+        rm[189]=245; rm[190]=245; rm[191]=245; rm[192]=245;
+        rt[174]=262; rt[175]=274; rt[176]=286; rt[177]=298; rt[178]=310; rt[179]=322;
+        rt[180]=334; rt[181]=346; rt[182]=358; rt[183]=370; rt[184]=382; rt[185]=386;
+        rt[186]=385; rt[187]=385; rt[188]=385; rt[189]=386; rt[190]=385; rt[191]=385; rt[192]=385;
+
+        // --- M: recover moisture + temp back to healthy (gentle).
+        rm[193]=300; rm[194]=360; rm[195]=400; rm[196]=400;
+        rt[193]=300; rt[194]=270; rt[195]=250; rt[196]=250;
+
+        // --- N: SENSOR anomaly.  The NPK sensor fails stuck-HIGH (railed at 4095).
+        //        The engine's fixed rail check watches MOISTURE only, so it MISSES
+        //        this; the TEDA block (adaptive_anomaly) flags the nutrient channel,
+        //        and the top INJECTS a SENSOR_ANOMALY -> CHECK_SENSOR caretaker page.
+        rn[197]=4095; rn[198]=4095; rn[199]=4095; rn[200]=4095; rn[201]=4095; rn[202]=4095;
+        rn[203]=300;  rn[204]=300;  rn[205]=300;  rn[206]=300;  rn[207]=300;  rn[208]=300;
+
+        // --- O: WEED #2.  A second, deeper moisture crash at a different time; temp
+        //        normal -> weed fires again (proves the detector repeats).
+        rm[212]=120; rm[213]=120; rm[214]=120; rm[215]=120;
+        rm[216]=250; rm[217]=380; rm[218]=400;
 
         // ---- Reset, then stream the trace one sample per cycle -----------
         rst = 1; sensors_valid = 0;
@@ -460,6 +594,39 @@ module edge_analytics_tb;
             $display("#   sparseness OK: %0d packets << %0d samples (Tier-2 radio is sparse)",
                      caretaker_pkts, samples_processed);
         end
+
+        // ---- FEATURE SELF-CHECKS: the narrative actually happened --------------
+        // Each asserts a feature fired (or correctly did NOT fire) inside its story
+        // window.  These make the 210-sample trace self-verifying: if a future edit
+        // shifts a phase, the matching check fails loudly instead of silently.
+        $display("# FEATURE CHECKS (per story-phase window):");
+        if (!saw_weed1) begin errors = errors + 1;
+            $display("#  ** FAIL weed #1 did not fire in ts %0d..%0d", WEED1_LO, WEED1_HI);
+        end else $display("#   OK weed #1 fired (ts %0d..%0d)", WEED1_LO, WEED1_HI);
+        if (!saw_weed2) begin errors = errors + 1;
+            $display("#  ** FAIL weed #2 did not fire in ts %0d..%0d", WEED2_LO, WEED2_HI);
+        end else $display("#   OK weed #2 fired (ts %0d..%0d)", WEED2_LO, WEED2_HI);
+        if (weed_in_dry1) begin errors = errors + 1;
+            $display("#  ** FAIL weed WRONGLY fired during the slow dry-spell (ts %0d..%0d)", DRY1_LO, DRY1_HI);
+        end else $display("#   OK slow dry-spell did NOT trip weed (ts %0d..%0d)", DRY1_LO, DRY1_HI);
+        if (weed_in_heat) begin errors = errors + 1;
+            $display("#  ** FAIL weed WRONGLY fired during heat (should be SUPPRESSED, ts %0d..%0d)", HEAT_LO, HEAT_HI);
+        end else $display("#   OK weed SUPPRESSED under heat = evaporation (ts %0d..%0d)", HEAT_LO, HEAT_HI);
+        if (!saw_heat) begin errors = errors + 1;
+            $display("#  ** FAIL heat alert did not fire in ts %0d..%0d", HEAT_LO, HEAT_HI);
+        end else $display("#   OK heat alert fired (ts %0d..%0d)", HEAT_LO, HEAT_HI);
+        if (!saw_frost) begin errors = errors + 1;
+            $display("#  ** FAIL frost alert did not fire in ts %0d..%0d", FROST_LO, FROST_HI);
+        end else $display("#   OK frost alert fired (ts %0d..%0d)", FROST_LO, FROST_HI);
+        if (!saw_nut) begin errors = errors + 1;
+            $display("#  ** FAIL nutrient alert did not fire in ts %0d..%0d", NUT_LO, NUT_HI);
+        end else $display("#   OK nutrient alert fired (ts %0d..%0d)", NUT_LO, NUT_HI);
+        if (!saw_combined) begin errors = errors + 1;
+            $display("#  ** FAIL combined-stress (status>0, all single alerts clear) not seen in ts %0d..%0d", COMB_LO, COMB_HI);
+        end else $display("#   OK combined-stress caught by joint fusion (ts %0d..%0d)", COMB_LO, COMB_HI);
+        if (!saw_anom) begin errors = errors + 1;
+            $display("#  ** FAIL sensor anomaly did not fire in ts %0d..%0d", ANOM_LO, ANOM_HI);
+        end else $display("#   OK TEDA sensor anomaly fired (ts %0d..%0d)", ANOM_LO, ANOM_HI);
         $display("#---------------------------------------------------------");
         if (errors == 0)
             $display("# RESULT: PASS - D-line aligned (17 fields), warm-up gate silent at ts=0, caretaker radio TX'd %0d sparse packet(s) (%0d%% saved), 0 errors.",

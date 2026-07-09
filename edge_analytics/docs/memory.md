@@ -279,16 +279,31 @@ _(Last live snapshot. Update when the situation changes.)_
        counter ends 66/2/97%.** No `.v` or tkinter file touched. This is the projector demo (slide 8)
        + slide-3/4 screenshot source.
        - ⚠️ **REVISIONS REQUESTED (user, {2026-07-09}) — do these BEFORE 6b:**
-         **(R1) Bigger sample size:** extend the tb story-trace 66 → **≥200 samples** (richer
-         multi-incident narrative, ~5–8 caretaker packets), regenerate `demo/mission_control_data.txt`.
-         Testbench-only change (`edge_analytics_tb.v`), keep frozen D-line + C,/M, formats + RESULT PASS.
-         **(R2) "Only 3 parameters" — make ALL features PROMINENT + PERSISTENT:** the panels exist but
-         the 3 sensor charts dominate and the differentiator badges (weed/fusion/TEDA) are small +
-         dormant, so judges only register 3 things. Rework `mission_control.html` so EVERY feature is
-         an always-visible, labeled tile with a live status ("WEED DETECTION: monitoring→DETECTED",
-         "FUSION: ok→COMBINED STRESS", "TEDA: normal→FLAGGED", pump, doser, nutrient, frost/heat) and
-         the differentiators (TEDA / fusion / caretaker triage / edge-win) get equal-or-bigger billing
-         than the charts. R1 first (data), then R2 (dashboard renders the new data).
+         **(R1) ✅ DONE ({2026-07-10}) — Bigger sample size:** extended the tb story-trace 66 →
+         **223 samples** (16-phase multi-incident narrative), regenerated `demo/mission_control_data.txt`.
+         Testbench-only (`edge_analytics_tb.v`); frozen 17-field D-line + C,/M, formats untouched;
+         **RESULT PASS, 0 errors**. **6 sparse caretaker packets** → `M,223,6,98` (98% saved):
+         WEED@62, STATUS_CRITICAL@96 (heat+drought), FROST@129, NUTRIENT_LOW@152, SENSOR_ANOMALY@197
+         (TEDA/nutrient rail), WEED@214. Trace shaped for TEDA (gentle non-anomaly transitions
+         ≤~12/sample so only the intended sensor fault flags; weed crashes + heat fast-drop + nutrient
+         rail stay abrupt) + ±5 jitter on steady segments. Added per-phase FEATURE self-checks (weed in
+         weed phases, NOT in dry-spell, SUPPRESSED under heat; heat/frost/nutrient/combined/anomaly all
+         fire) — all green. ✅ `mission_control.html` REFRESHED to the new 223-sample stream (re-embedded
+         data, counts/scrubber/labels/narration/battery retuned, %saved aligned to 98; verified in
+         /browse: 0 errors, 6 packets incl. FROST@129, fusion badge fires). R2 (make every feature a
+         prominent always-visible tile) is the remaining dashboard rework.
+         **(R2) ✅ DONE ({2026-07-10}) — make ALL features PROMINENT + PERSISTENT** (redesigned
+         `mission_control.html`): EVERY feature is now an always-visible tile that flashes on fire (8:
+         pump, doser, weed, heat, frost, nutrient, joint-fusion, TEDA — monitoring→DETECTED,
+         clear→COMBINED STRESS, learning→FLAGGED, …) + a big top ACTIVE-ALERT banner naming the current
+         situation + its action. Added a **crop-health trend** + **moisture depletion-rate** graph (5
+         charts total). Fusion tile requires pump OFF (so a dry-spell reads IRRIGATING, only the genuine
+         dry+hot sub-threshold case reads COMBINED STRESS). Per the user, **the Caretaker's Phone was
+         REPLACED by a Tier-2 Radio Transmitter** panel: shows the real 64-bit `alert_packet` as
+         labeled color-coded bit groups (§6) + a radio-wave burst on TX; the **edge-win is folded into
+         it** (dumb 223 vs our 6 → 97%, battery bars dropped). Fixed the janky horizontal scroll (no
+         page-level x-scroll; wide content scrolls inside its box). Verified in /browse: 0 errors, all 6
+         TX moments + fusion + suppression-under-heat render correctly.
      - **← THEN: 6b — tkinter upgrade** (live proof): add the missing panels to the teammate's
        `robochipx_dashboard_handoff/edge_agri_dashboard.py`, kept on the live `vvp | python` pipe.
        Run AFTER 6a. This is the "and here it is live off the actual chip" moment.

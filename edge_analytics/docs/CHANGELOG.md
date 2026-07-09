@@ -5,6 +5,82 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed — Canonical story-trace expanded 66 → 223 samples (richer multi-incident demo)
+- **Modified ONLY `edge_analytics_tb.v`** (every RTL `.v` module stays frozen/untouched) and
+  **regenerated `demo/mission_control_data.txt`**. The trace now runs **223 samples** (~210 target)
+  through a 16-phase narrative that exercises EVERY feature, spread out so the dashboard stays lively
+  end-to-end:
+  A warm-up+healthy · B dry-spell→PUMP→recover (hysteresis) · C healthy · **D WEED #1** · E healthy ·
+  **F HEAT wave + fast drop (weed SUPPRESSED = evaporation)** · G healthy · **H COLD snap / FROST** ·
+  I healthy · **J NUTRIENT low** · K healthy · **L COMBINED stress (joint fusion)** · M healthy ·
+  **N SENSOR anomaly (TEDA catch, nutrient rail)** · **O WEED #2** · P healthy tail.
+- **Caretaker packets: 6** (target 5–8), sparse and on-message — `M,223,6,98` → **98% fewer
+  transmissions**:
+  `WEED@62` (INSPECT_WEED) · `STATUS_CRITICAL@96` (RELOCATE_REV — the heat+drought critical) ·
+  `FROST_RISK@129` (PROTECT_FROST) · `NUTRIENT_LOW@152` (MANUAL_FERT) · `SENSOR_ANOMALY@197`
+  (CHECK_SENSOR — TEDA catches the nutrient rail the engine's moisture-only rail check misses) ·
+  `WEED@214` (INSPECT_WEED).
+- **TEDA-aware trace shaping:** the self-tuning anomaly block has near-zero learned variance on a
+  quiet channel, so any FIRST abrupt excursion reads as an outlier. Every transition that must NOT be
+  a "sensor anomaly" (dry-spell, irrigation recovery, heat ramp, cold descent, nutrient decline,
+  combined-stress easing) is kept GENTLE (≤~12 counts/sample) so the running mean tracks it; only the
+  weed crashes, the heat-driven fast drop, and the intended nutrient rail are abrupt. Result: the
+  **only** `alert_anomaly` in the whole run is the intended sensor fault (ts 197–199) — no spurious
+  pages. Small deterministic ±5 `jit(k)` on steady segments makes the RAW columns wiggle like real
+  sensors (the moving average smooths it; the reference `avg8` model reads the same arrays so
+  alignment stays exact).
+- **New FEATURE self-checks** (in addition to the existing alignment / warm-up / sparseness checks):
+  the tb now asserts, per story-phase window, that weed fired in both weed phases, did NOT fire in the
+  slow dry-spell, was SUPPRESSED under heat; and that heat / frost / nutrient / combined-stress /
+  anomaly each fired in their window. All green.
+- **VERIFIED: RESULT PASS, 0 errors** — `iverilog -o sim_top.vvp edge_analytics_top.v sensor_collector.v
+  smoothing_stage.v moving_avg.v analytics_engine.v output_analytics.v adaptive_anomaly.v comms_tx.v
+  edge_analytics_tb.v && vvp sim_top.vvp` (223 aligned 17-field D-rows, 6 sparse packets, 98% saved).
+- ✅ **`demo/mission_control.html` refreshed to the new stream.** Re-embedded the 223-sample
+  D/C/M data (inline, parsed offline — still no fetch), retargeted the counts (223 samples / 6 packets,
+  scrubber 0–222), added the `RELOCATE_REV` action label (the STATUS_CRITICAL@96 heat-crisis page) and
+  narration for the new WEED/FROST incidents, retuned the battery-drain constant for 223 samples, and
+  aligned the "% saved" to the tb's integer M-line (98%). **Verified in gstack /browse: 0 console
+  errors, N=223, 6 packets, phone buzzes at all 6 events (incl. FROST@129), fusion badge fires at
+  ts≈187, counter ends 223 vs 6 → 98%.**
+
+### Changed — ⭐ Mission Control redesign (R2): radio transmitter, feature tiles, more graphs
+- **Reworked `demo/mission_control.html`** on user feedback so every feature is prominent, not just the
+  3 sensor charts. Same self-contained offline file (inline CSS/JS, embedded 223-sample stream).
+- **Caretaker's Phone → Tier-2 Radio Transmitter.** The phone mockup is gone; the panel now shows the
+  actual hardware story: the chip emits a **64-bit `alert_packet`** and modulates it onto the radio.
+  On each transmission an antenna bursts radio-wave rings and the packet is shown as **labeled,
+  color-coded bit groups** (severity[4] · event[4] · action[4] · crop_health[8] · reserved[12] ·
+  timestamp[32]) — reconstructed exactly per `INTERFACES.md §6` (verified against the sim's packet hex),
+  plus the decoded fields (severity / event / action / health).
+- **Edge-win folded into the radio panel** (user's call): "radio transmissions — dumb node 223 vs our
+  chip 6 → 97% fewer", with a proportional bar. Dropped the separate battery-bars panel.
+- **Every feature is now an always-visible tile that flashes on fire** (8 tiles: pump, doser, weed,
+  heat, frost, nutrient, joint-fusion, TEDA), each with a live status (monitoring→DETECTED,
+  clear→COMBINED STRESS, learning→FLAGGED, …) and a colored glow + "● FIRED" spark when active.
+- **Big active-alert banner** across the top names the current situation prominently (e.g. "CRITICAL ·
+  WEED DETECTED", "HEAT STRESS", "SENSOR ANOMALY", "ALL SYSTEMS NOMINAL") with the recommended action.
+- **More graphs:** added a **crop-health trend** line and a **moisture depletion-rate** chart (drop over
+  4 samples with the RATE_THRESH weed line drawn in) alongside the 3 raw-vs-smoothed sensor charts (5 total).
+- **Fusion semantics fixed:** the joint-fusion classification now requires the pump to be OFF, so a plain
+  dry-spell (which raises status with the pump running) reads "IRRIGATING", and only the genuine
+  sub-threshold dry+hot case reads "COMBINED STRESS".
+- **Fixed the janky horizontal scroll:** the page never scrolls horizontally (`overflow-x:hidden`, grid
+  columns use `minmax(0,…)`, wide content like the bit strip / log scrolls smoothly inside its own box).
+  Verified: `document.body.scrollWidth == clientWidth` at 1440px.
+- **VERIFIED in gstack /browse (0 console errors)** across all key moments: warm-up (silent radio),
+  dry-spell→IRRIGATING, WEED (tile + radio TX), HEAT (heat tile lit while weed tile stays "monitoring" =
+  suppression made visible), FROST, NUTRIENT LOW, COMBINED STRESS (pump off), SENSOR ANOMALY (radio TX +
+  64-bit packet), ending 223 vs 6 → 98%.
+- **Polish pass (user feedback):** (1) whole UI scaled **+25%** for the projector via `zoom:1.25` on
+  `.app` with width/height compensated (`calc(100vw/1.25)`), so it still fits exactly one screen with no
+  horizontal scroll; (2) sensor + analytics **charts enlarged** and the left column scrolls vertically
+  when they overflow (no need to see them all at a glance); (3) each Live-Features tile gained a small
+  **ⓘ info icon** with a hover tooltip explaining that parameter (rendered outside the zoom layer so it
+  never clips); (4) the timeline **progress bar is now smooth** — replaced the stepped native range with
+  a custom fill+knob that transitions linearly over each step interval during playback (instant when
+  scrubbing/paused). Verified: 0 console errors, app renders exactly 1440×900, `scrollWidth==innerWidth`.
+
 ### Added — ⭐ WEB Mission Control (6a) — the hero demo (`demo/mission_control.html`)
 - **Built `demo/mission_control.html`** — ONE self-contained screen that REPLAYS the real captured
   sim stream (`demo/mission_control_data.txt`) as an animated story. Opens by double-click
