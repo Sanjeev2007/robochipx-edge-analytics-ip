@@ -29,7 +29,7 @@
 
 ---
 
-## Phase 1 — `sensor_collector`   (mandatory #1)   Status: ⬜
+## Phase 1 — `sensor_collector`   (mandatory #1)   Status: ✅ built + simulated
 - **Owner:** RTL lead. **Depends on:** nothing.
 - **Goal:** the 3-channel sensor front-end that timestamps every reading.
 - **Build (`sensor_collector.v`):**
