@@ -123,23 +123,45 @@
 - **Test:** verify pump doesn't oscillate; outputs stable and match decisions.
 - **Done when:** actuator/alert bus is clean and correct.
 
-## Phase 5 — egress (live stream)   (cloud-sync bonus, egress half)   Status: ⬜
-- **Owner:** RTL lead. **Depends on:** Phase 4.
-- **Goal:** stream results live for the dashboard — NO saved file.
-- **Build:** in the top testbench, `$display` a `D` line every valid cycle and an `E`
-  line whenever `event_id != 0`, EXACTLY per `INTERFACES.md` §3. (Stretch: `uart_tx.v`
-  to serialize into real bytes.)
-- **Test:** run `vvp simulation.vvp` and confirm well-formed `D`/`E` lines print to stdout.
-- **Done when:** stdout shows correct `D`/`E` lines; ready to pipe into Python.
+## Phase 5 — `edge_analytics_top` (integration + live egress)   (mandatory + cloud-sync egress)   Status: ⬜
+- **Owner:** RTL lead. **Depends on:** Phases 1–4.
+- **Goal:** wire the whole chip together AND emit the live `D`/`E` stream. (The stream
+  can't exist without the integrated, aligned pipeline — so integration + egress are
+  one phase.)
+- **Build (`edge_analytics_top.v`):** instantiate and chain the four blocks:
+  `sensor_collector → smoothing_stage → analytics_engine → output_analytics`.
+  Do NOT modify the sub-modules — pure wiring + alignment. Expose an aligned output
+  bundle (all `D`-line fields + event) under one `out_valid`.
+- **⚠️ LATENCY ALIGNMENT (the big gotcha — must handle in the top):** each `D`-line
+  field is born at a different pipeline stage, so they must be re-aligned before printing:
+  | field | born after | delay needed to reach the output_analytics stage |
+  |---|---|---|
+  | raw `moisture/nutrient/temp` | sensor_collector | **+3 cycles** |
+  | `avg_moisture/nutrient/temp` | smoothing_stage | **+2 cycles** |
+  | sample `timestamp` | sensor_collector | **+3 cycles** |
+  | `pump/status/health/event_*` | output_analytics | 0 (already at this stage) |
+  Add plain shift-register delay lines in the top (raw & timestamp ×3, avg ×2) so every
+  field on a given output cycle belongs to the SAME original sample. Also delay the
+  `avg_moisture`/`timestamp` that `output_analytics` itself needs (+1/+2) to line up with
+  its `in_valid` — verify against the Phase 4 interface (§2 output_analytics inputs).
+- **Build (`edge_analytics_tb.v`):** feed a short trace through the top; `$display` a `D`
+  line every `out_valid` cycle and an `E` line whenever `event_id != 0`, EXACTLY per
+  `INTERFACES.md` §3. (Stretch: `uart_tx.v` to serialize into real bytes.)
+- **Test:** confirm that for one known sample, its raw + avg + decision all appear on the
+  SAME `D` line (alignment proof), and `D`/`E` lines are well-formed and pipeable.
+- **Done when:** `vvp simulation.vvp` prints a correct, aligned `D`/`E` stream ready to
+  pipe into Python.
 
-## Phase 6 — `edge_analytics_top` + integration   (all mandatory)   Status: ⬜
-- **Owner:** RTL lead. **Depends on:** Phases 1–5.
-- **Goal:** one chip, full demo.
-- **Build (`edge_analytics_top.v` + `edge_analytics_tb.v`):** wire collector → 3×avg →
-  analytics → output; testbench plays the full story trace and prints the stream.
-- **Done when:** end-to-end sim runs, prints the live stream, every feature demonstrates.
-- **Handoffs fire here:** Teammate B synthesizes the full top for reports; Teammate C
-  points the dashboard at the real stream (`vvp simulation.vvp | python3 dashboard.py`).
+## Phase 6 — full demo + handoffs   (all mandatory, integrated)   Status: ⬜
+- **Owner:** RTL lead. **Depends on:** Phase 5 + the VERIFIED canonical story-trace
+  (from the data role, validated by the lead against the real RTL).
+- **Goal:** the end-to-end demo on the real story data.
+- **Build:** swap the short trace for the canonical story-trace; run end-to-end and
+  confirm every feature demonstrates with correct events/timestamps (healthy → dry→pump
+  → recovery → weed → heat → nutrient-low). Capture waveforms + the full stream.
+- **Done when:** the full narrative runs and every mandatory + bonus feature is visible.
+- **Handoffs fire here:** synthesis owner synthesizes the full top for reports; dashboard
+  owner points the dashboard at the real stream (`vvp simulation.vvp | python3 dashboard.py`).
 
 ## Phase 7 — real-time dashboard   (Teammate C, parallel from Phase 0)   Status: ⬜
 - **Owner:** Teammate C. **Depends on:** the `INTERFACES.md` §3 stream format only.

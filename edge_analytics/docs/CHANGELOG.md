@@ -20,6 +20,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   "the README rules" now point to `CLAUDE.md`.
 
 ### Repository & process (cont.)
+- **Reordered Phases 5/6 in `BUILD_PLAN.md`:** Phase 5 is now `edge_analytics_top`
+  (integration + live egress stream — they're inseparable), Phase 6 is the full
+  story-trace demo + handoffs. Added the critical **latency-alignment** spec (raw +3,
+  avg +2 delay lines so every `D`-line field is from the same sample).
 - **Split the data role out of synthesis:** new `DATA_TASKS.md` (branch `data`) owns
   the canonical demo story-trace, sensor calibration (count→real-unit), and a dashboard
   stub feed. `SYNTHESIS_TASKS.md` is now synthesis-only. `WORKFLOW.md` branch table updated.
