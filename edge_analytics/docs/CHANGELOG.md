@@ -20,6 +20,40 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   "the README rules" now point to `CLAUDE.md`.
 
 ### Added
+- **Phase 4 — `output_analytics.v`** (mandatory feature #4): the clean, registered
+  actuator/alert bus that turns the analytics_engine decisions into the signals the
+  outside world acts on. Interface per `INTERFACES.md` §2 (with the two Phase 4 input
+  additions noted below).
+  - **Pump hysteresis (the headline requirement):** `pump_on` turns ON when `dry`
+    (avg_moisture < 200), then STAYS ON through the 200–350 band — even as the soil
+    recovers past the dry threshold — until `avg_moisture > PUMP_OFF_THRESH` (350),
+    then OFF. The 200→350 gap is the hysteresis band that kills pump chatter. Once
+    off, it does not re-trigger until the soil is genuinely dry again.
+  - **PUMP_ON(1) / PUMP_OFF(2) events generated here** (the engine deliberately
+    leaves ids 1/2 for this stage). event_id merge rule: a real engine event
+    (anomaly/weed/frost/heat/nutrient/critical) WINS; when the engine reports NONE,
+    the pump's own toggle surfaces as PUMP_ON/PUMP_OFF, stamped with the current
+    `timestamp`. Idle cycles HOLD the last real event's timestamp.
+  - **Alert bus + doser:** registered mirrors `alert_weed←weed`, `alert_heat←hot`,
+    `alert_frost←cold`, `alert_nutrient←low_nutrient`, `alert_anomaly←anomaly`, and
+    `dose_nutrient←low_nutrient`. `status`, `crop_health`, `event_id`,
+    `event_timestamp` passed through.
+  - **All outputs registered** (1-cycle latency); `out_valid = in_valid` delayed one
+    cycle. Synthesizable, `clk`/`rst`-driven, fully commented; VCD dump.
+  - **⚠️ Interface refinement (`INTERFACES.md` §2):** `output_analytics` takes two
+    inputs beyond the analytics_engine outputs — `avg_moisture` (to test the
+    `> PUMP_OFF_THRESH` turn-off) and `timestamp` (to stamp generated pump events).
+    Both are the corresponding engine INPUTS carried alongside; the top level delays
+    them to stay aligned with the registered decisions. §2 table updated.
+- `output_analytics_tb.v` — drives the engine decisions directly through a story that
+  exercises every requirement, with 8 self-check groups (0 errors): dry→PUMP_ON
+  (ev_ts=100); soil recovering into the 200–350 band holds the pump ON (**no
+  chatter**); crossing 350 → PUMP_OFF (ev_ts=130); a below-350-but-not-dry dip keeps
+  it OFF (no re-trigger); a second dry spell **re-arms** the pump (PUMP_ON ev_ts=150);
+  an engine WEED event landing the same cycle the pump turns off proves the engine
+  event **wins** `event_id` while the pump still actuates; full `alert_*`/`dose_nutrient`
+  mapping (heat/frost/nutrient/anomaly); and `out_valid` dropping with `in_valid`.
+  Dumps `dump.vcd`.
 - **Phase 3 — `analytics_engine.v`** (mandatory feature #3 + anomaly / sensor-fusion
   bonuses): the "brain" that turns the smoothed set into decisions. Interface exactly
   per `INTERFACES.md` §2 `analytics_engine`; all thresholds are named params from §5.
@@ -110,6 +144,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   machine-health-monitor concept.
 
 ### Verified
+- Compiled and simulated `output_analytics` successfully
+  (`iverilog -o simulation.vvp output_analytics.v output_analytics_tb.v && vvp
+  simulation.vvp`). **RESULT: PASS (0 errors).** The trace confirmed pump hysteresis
+  end-to-end: `pump_on` fired at avgM=180 (PUMP_ON, ev_ts=100), HELD ON across
+  avgM=260 and 340 (in the 200–350 band, no chatter), turned OFF at avgM=360
+  (PUMP_OFF, ev_ts=130), stayed OFF at avgM=210 (not dry), and RE-ARMED at avgM=190
+  (PUMP_ON, ev_ts=150). Event priority verified: a WEED engine event on the same
+  cycle the pump turned off surfaced as `event_id=3` (engine wins) while `pump_on`
+  still went to 0. All `alert_*` lines + `dose_nutrient` mapped correctly, and
+  `out_valid` dropped with `in_valid`.
 - Compiled and simulated `analytics_engine` successfully
   (`iverilog -o simulation.vvp analytics_engine.v analytics_engine_tb.v && vvp
   simulation.vvp`). All 8 story-arc self-checks reported **PASS** (0 errors):
@@ -121,8 +165,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   when dry+hot pushed `active≥2`.
 
 ### Planned
-- `output_analytics` — registered outputs: `pump_on`, `alert_nutrient`, `alert_weed`, status (mandatory #4).
-- `edge_analytics_top` — top-level integration of all blocks.
+- Phase 5 — live-stream egress: top testbench `$display`s `D`/`E` lines per `INTERFACES.md` §3.
+- `edge_analytics_top` — top-level integration of all blocks (Phase 6).
 - Install `gtkwave` for visual waveform inspection.
 
 ## [0.1.0] - 2026-07-09

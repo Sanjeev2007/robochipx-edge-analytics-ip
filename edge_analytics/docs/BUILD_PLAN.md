@@ -114,7 +114,7 @@
 - **⚠️ Tuning note:** `RATE_THRESH`/`HIST_DEPTH` must be consistent with the story-trace
   slopes (normal dry-spell gentle, weed steep). If the trace changes, retune here.
 
-## Phase 4 — `output_analytics`   (mandatory #4)   Status: ⬜
+## Phase 4 — `output_analytics`   (mandatory #4)   Status: ✅ built + simulated
 - **Owner:** RTL lead. **Depends on:** Phase 3.
 - **Goal:** clean, registered actuator/alert outputs.
 - **Build (`output_analytics.v`):** register all outputs; implement **pump hysteresis**

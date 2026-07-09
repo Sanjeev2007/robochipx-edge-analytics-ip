@@ -60,7 +60,10 @@ whole pipeline stays aligned and the `D` stream line can carry all 3 at once.
 ### `output_analytics` (registered actuator/alert bus)
 | Dir | Signal | Width | Meaning |
 |---|---|---|---|
-| in | (all analytics_engine outputs) | | |
+| in | `clk`, `rst`, `in_valid` | 1 | clock, reset, = analytics_engine `out_valid` |
+| in | (all analytics_engine decision outputs) | | `dry`,`low_nutrient`,`hot`,`cold`,`weed`,`anomaly`,`status_in`,`crop_health_in`,`event_id_in`,`event_timestamp_in` |
+| in | `avg_moisture` | 12 | **(Phase 4 add)** smoothed moisture — needed to test `> PUMP_OFF_THRESH` for hysteresis |
+| in | `timestamp` | 32 | **(Phase 4 add)** current time — needed to stamp generated PUMP_ON/PUMP_OFF events |
 | out | `pump_on` | 1 | irrigation (with hysteresis) |
 | out | `dose_nutrient` | 1 | fertilizer doser |
 | out | `alert_weed`, `alert_heat`, `alert_frost`, `alert_nutrient`, `alert_anomaly` | 1 | alerts |
