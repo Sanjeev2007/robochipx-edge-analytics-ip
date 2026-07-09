@@ -46,6 +46,8 @@ asking).** RTL `.v` files live at `edge_analytics/`; docs at `edge_analytics/doc
 - `icarus-verilog` — INSTALLED via Homebrew (`iverilog`, `vvp`). ✅
 - `gtkwave` — NOT installed yet. `brew install --cask gtkwave` when we want to
   view waveforms visually. Console `$display` output works without it.
+- `python3` 3.14.6 (Homebrew) + `python-tk@3.14` — INSTALLED. ✅ Needed to run the
+  dashboard GUI (`edge_agri_dashboard.py`, tkinter). `import tkinter` OK (Tk 9.0).
 
 ## 4. Inner-loop commands (per CLAUDE.md)
 ```bash
@@ -142,15 +144,16 @@ _(Last live snapshot. Update when the situation changes.)_
   a working 56-sample trace). Their trace is a later realism refinement.
 - **Teammates have NO coding assistant** (plain ChatGPT, no repo access) → each task
   sheet carries a fully self-contained paste-in prompt (see `DATA_TASKS.md`).
-- **⚠️ TWO INTEGRATION FOLLOW-UPS found while verifying Phase 5.5 (fix before Phase 6 live demo):**
-  1. **tkinter missing on the Mac** — `python3` (Homebrew) has no `_tkinter`, so the
-     dashboard GUI won't launch. Fix: `brew install python-tk` (match the brew python
-     version). Needed for `vvp simulation.vvp | python3 edge_agri_dashboard.py`.
-  2. **Diagnostic banner pollutes the stream** — the testbench's `RESULT: PASS ...`
-     summary prints to stdout and the dashboard's loose parser turns it into ONE bogus
-     zero-sample. Fix: prefix all non-CSV/diagnostic testbench lines with `#` (the
-     dashboard's `parse_sample` skips `#` lines). Also mind the `VCD info:` line (it's
-     harmlessly skipped — 7 tokens < 8).
-- **NEXT ACTIONS:** (1) ~~reconcile egress~~ ✅ done; (2) fix the two follow-ups above;
-  (3) generate + verify the canonical story-trace; (4) Phase 6 full demo (swap trace,
-  capture waveforms, live dashboard integration on the Mac — see §8 checkpoint).
+- **✅ TWO INTEGRATION FOLLOW-UPS (found + FIXED while verifying Phase 5.5):**
+  1. **tkinter** — installed `python-tk@3.14` via Homebrew (matches Python 3.14.6);
+     `import tkinter` OK (Tk 9.0). The dashboard GUI can now launch on the Mac.
+  2. **Banner hygiene** — the testbench's `RESULT`/separator lines are now `#`-prefixed
+     so the dashboard's `parse_sample` skips them. Re-verified with the REAL dashboard
+     module: **56 valid samples, 0 junk**; `ts=24` → moisture_avg 39, pump ON, WARNING,
+     health 76. Stream is clean pure-CSV (the auto `VCD info:` line is harmlessly skipped).
+- **END-TO-END READY:** `vvp simulation.vvp | python3 robochipx_dashboard_handoff/edge_agri_dashboard.py`
+  should now drive the real dashboard GUI on the Mac. (GUI window can't be launched in a
+  headless agent shell — the human runs it; everything up to the GUI is verified.)
+- **NEXT ACTIONS:** (1) ~~reconcile egress~~ ✅; (2) ~~integration fixes~~ ✅; (3) generate
+  + verify the canonical story-trace; (4) Phase 6 full demo (swap trace, capture
+  waveforms, run the live dashboard on the Mac — see §8 checkpoint).

@@ -34,6 +34,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   the canonical demo story-trace, sensor calibration (count→real-unit), and a dashboard
   stub feed. `SYNTHESIS_TASKS.md` is now synthesis-only. `WORKFLOW.md` branch table updated.
 
+### Fixed / setup
+- **Installed `python-tk@3.14`** (Homebrew, matches Python 3.14.6) so the dashboard
+  tkinter GUI can launch on the Mac; `import tkinter` verified (Tk 9.0).
+- **Banner hygiene in `edge_analytics_tb.v`:** `#`-prefixed the `RESULT`/separator
+  diagnostic lines so the dashboard's parser skips them. Re-verified against the real
+  `edge_agri_dashboard.py` parser: 56 valid samples, 0 junk. End-to-end
+  `vvp simulation.vvp | python3 …/edge_agri_dashboard.py` is ready to run on the Mac.
+
 ### Added
 - **Phase 5.5 — egress reconciliation to the dashboard's 17-field CSV**
   (`edge_analytics_tb.v` ONLY — **no `.v` module changed**): replaced the two-line

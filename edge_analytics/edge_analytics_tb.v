@@ -299,12 +299,12 @@ module edge_analytics_tb;
         repeat (8) @(negedge clk);
 
         // ---- Verdict -----------------------------------------------------
-        $display("----------------------------------------------------------");
+        $display("#---------------------------------------------------------");
         if (errors == 0)
-            $display("RESULT: PASS - all D-line fields aligned to their sample (0 errors).");
+            $display("# RESULT: PASS - all D-line fields aligned to their sample (0 errors).");
         else
-            $display("RESULT: FAIL - %0d alignment error(s).", errors);
-        $display("----------------------------------------------------------");
+            $display("# RESULT: FAIL - %0d alignment error(s).", errors);
+        $display("#---------------------------------------------------------");
         $finish;
     end
 
