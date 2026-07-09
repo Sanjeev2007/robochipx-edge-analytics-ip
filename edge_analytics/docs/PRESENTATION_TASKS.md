@@ -41,10 +41,23 @@ it is: the chip carries agronomy setpoints per crop AND soil type, and TEDA self
 them."* Implementing a judge's own suggestion is a huge credibility signal — make sure it's
 visibly attributed to their feedback. (Status: proposed — see `PROBLEM_STATEMENT.md`.)
 
-**⏳ THE OFFICIAL 10-SLIDE FORMAT — mapping goes here.** The deck is a fixed 10 slides, each
-dedicated to a topic. Paste that format and we fill in, slide by slide, exactly which of the
-assets above lands where — so no differentiator falls through the cracks. Until then, the
-"Suggested deck flow" below is our best guess; the official format OVERRIDES it.
+**✅ THE OFFICIAL 10-SLIDE MAPPING** (from `RCX PPT TEMPLATE_...pptx`). This is a FIXED
+submission format — our job is to pack our story into these exact boxes. **Slides 3 & 4 are
+where we win — concentrate every differentiator there.** The "Suggested deck flow" further
+down is superseded by THIS mapping.
+
+| # | Template slide | What WE put on it |
+|---|---|---|
+| 1 | **TITLE** (Team ID / Track / Team name / Members) | Fill the fields. Add a one-line tagline: *"An Edge-Analytics IP for Precision Agriculture — analytics in silicon, not the cloud."* Track = Chip Design. |
+| 2 | **PROBLEM STATEMENT** (core problem · significance · users · gaps) | IoT drowns in raw data; cloud = latency/bandwidth/privacy/**battery drain** (SDG 9 & 11). Users: farmers + a remote caretaker km away. **Gaps (set up our answers):** (a) dumb nodes stream every reading → drain the radio; (b) generic automation doesn't adapt per crop/soil/node; (c) hand-tuned thresholds can't scale to 1000s of fields. |
+| 3 | **METHODOLOGY PROPOSED** (solution · how it resolves · **innovative/distinctive features**) ⭐ | THE DIFFERENTIATOR SLIDE. Solution = on-chip collect→smooth→analyze→act, two-tier response. Distinctive features = the 4: **① TEDA self-tuning anomaly** (adaptive, no hand-tuning → scales); **② joint/correlated fusion** (combinations, not single sensors); **③ two-tier triage → ~85–93% fewer transmissions** (same crop outcome); **④ it's real silicon**. (+ crop/soil profile line if built — "judge-suggested".) |
+| 4 | **TECHNICAL APPROACH** (architecture · tools/algorithms · workflow · testing · metrics) | The **block diagram**: sensors → collector → smoothing (moving_avg×3) → analytics_engine (fusion + temp-comp weed) **+** adaptive_anomaly (TEDA) → output_analytics (**Tier-1** actuators/alerts) → comms_tx (**Tier-2** sparse radio). Algorithms: divider-free moving-avg, TEDA Chebyshev, hysteresis, latency-aligned pipeline. Workflow: Mac sim (iverilog/gtkwave) → GitHub → Windows synth (Vivado). Testing: per-module TBs + top-level story-arc, self-checking. **Metrics: 3 packets / 66 samples (8D), synth util/timing/power, 0 alignment errors.** |
+| 5 | **TECH STACK** *(template mislabels this "Final Reflections" — its body asks for tools/hardware/platforms/languages, so treat as Tech Stack)* | Languages: Verilog + Python. Tools: Icarus Verilog, GTKWave, Yosys(+graphviz), Vivado/Quartus, Tkinter, Git/GitHub. Hardware target: FPGA/ASIC IP core (sim-proven, synthesizable); sensors = moisture/NPK/temp. Platform: local Mac + Windows synth — **no cloud (that's the point)**. |
+| 6 | **EXPECTED DELIVERABLE — Prototype/Model** | The Edge Analytics IP (synthesizable Verilog) + **the synthesized schematic** ("real circuit, not a script") + utilization/timing/power. |
+| 7 | **EXPECTED DELIVERABLE — Research paper/Docs** | The `docs/` suite (PROBLEM_STATEMENT, INTERFACES, BUILD_PLAN, FEATURES, CHANGELOG) + `papers/` research summaries + architecture writeup. |
+| 8 | **EXPECTED DELIVERABLE — Working demo** | **`demo/edge_agri_dashboard_demo.mov`** (already recorded!) + live run (`vvp \| dashboard`) + gtkwave waveforms (raw vs smoothed, pump/alerts + caretaker packets firing on the story arc). |
+| 9 | **REFERENCES** | Lozoya et al. 2021, *MDPI Sensors* 21:5541 (event-triggered irrigation, 85%/20%); TEDA (Angelov, Typicality & Eccentricity Data Analytics + the TEDA-FPGA paper); tool docs (Icarus, Yosys, Vivado); SDG 9 & 11. |
+| 10 | **(closing)** | Thank-you / contact / repo link. |
 
 ---
 
