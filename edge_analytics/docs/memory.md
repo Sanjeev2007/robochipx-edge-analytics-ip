@@ -81,7 +81,7 @@ Three sensor channels for the demo: **soil moisture, nutrient (NPK), temperature
 | 8C | JOINT fusion | Upgrade `analytics_engine` fusion from OR-of-thresholds → correlated/interaction-aware `crop_health`+`status` (NO humidity channel — keeps 3-ch dashboard contract) | ✅ built + simulated |
 | 8D | edge-win metric | Testbench-only: samples-processed vs packets-transmitted → % data / radio-on saved (+ machine-readable `C,`/`M,` lines). **Also: top-level warm-up gate** mutes the Tier-2 radio until the moving-avg window fills → kills the false ts=0 FROST packet | ✅ built + simulated |
 | 8F | `adaptive_anomaly` ⭐ | TEDA self-tuning anomaly: running μ+σ² per channel, Chebyshev eccentricity, divider-free (cross-mult). Replaces fixed rail-check. The researcher-impressive block | ✅ built + simulated |
-| 8G | visualization | 3 artifacts: gtkwave/EPWave waveforms + block diagram + **Vivado/Yosys synthesized schematic** ("show the chip") | ⬜ planned |
+| 8G | visualization | 3 artifacts: gtkwave/EPWave waveforms + block diagram + **Vivado/Yosys synthesized schematic**. **✅ SCHEMATIC + SYNTH DONE via Yosys on Mac** (`synthesis/`: top-block + moving_avg schematics + FPGA util = ~1245 LUT / 1163 FF / **3 DSP** = ~6% of Artix-7 xc7a35t; report in `synthesis/SYNTHESIS_REPORT.md`). ⚠️ NO Fmax/power (Yosys ≠ P&R — don't fabricate). **Waveforms still ⬜** | 🟡 schematic+synth done, waveforms pending |
 
 ## 7. Key design decisions
 - **Window size is a power of two** (`N = 2^LOG2_N`) so "divide by N" is a cheap

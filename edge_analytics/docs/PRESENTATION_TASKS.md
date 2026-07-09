@@ -112,7 +112,10 @@ down is superseded by THIS mapping.
 4. **Features** — the detect→act table (waters, feeds, spots weeds, ignores bad sensors).
 5. **The edge advantage** — decides in microseconds, on-device, no cloud.
 6. **Results** — waveforms (raw vs smoothed), the live dashboard + event log, synthesis
-   numbers ("3% of chip, 150 MHz, 40 mW"). This is the proof section.
+   numbers — REAL, from `synthesis/SYNTHESIS_REPORT.md`: **~1,245 LUTs / 1,163 FFs / 3 DSP
+   blocks → ~6% of an Artix-7 xc7a35t**; the 3 DSPs = the TEDA multipliers. ⚠️ Do NOT quote an
+   Fmax or power figure — Yosys does synthesis, not P&R; those numbers would be fabricated. This
+   is the proof section.
 7. **Requirements coverage** — mandatory 1–4 all done + bonuses (anomaly, fusion, cloud egress).
 8. **Scaling to acres + SDG + future** — the "real-world scale" slide (judge asked for it):
    - *Why silicon scales:* 1000s of nodes → per-node cost/power dominate; a Pi (watts, $35)

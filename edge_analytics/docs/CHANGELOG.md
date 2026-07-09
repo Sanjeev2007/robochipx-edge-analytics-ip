@@ -5,6 +5,22 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Phase 8G (part 1): synthesis + schematics via Yosys on macOS ("it's real silicon")
+- **Synthesized the full chip with Yosys 0.66 locally** (no Vivado/Windows needed). New `synthesis/`:
+  - **`SYNTHESIS_REPORT.md`** — write-up + reproducible commands + an honesty note.
+  - **`schematic_top_block.png/svg`** — whole chip as a netlist: all 6 module blocks wired
+    (sensor_collector → smoothing_stage → adaptive_anomaly + analytics_engine → output_analytics
+    → comms_tx) with the pipeline delay registers. The "real circuit, not a script" artifact.
+  - **`schematic_moving_avg.png/svg`** — one module up close (8-tap shift register + running
+    accumulator), coarse RTL cells so it's legible.
+  - **`fpga_utilization.txt`** — raw `synth_xilinx` log.
+- **FPGA utilization (Artix-7 xc7a35t / Basys-3):** **~1,245 LUTs / 1,163 FFs / 3 DSP48E1** →
+  **~6 %** of the chip (generic synth = ~7,471 cells). The **3 DSP blocks = the TEDA anomaly
+  multipliers** (one per channel); 200 CARRY4 = analytics adders; 1,163 FFs = the pipeline.
+- ⚠️ **Honesty guardrail:** Yosys does synthesis, NOT place-and-route → **no Fmax/power figure**
+  (would be fabricated). Fixed the stale "150 MHz / 40 mW" placeholders in `PRESENTATION_TASKS.md`
+  + `SYNTHESIS_TASKS.md` to the real utilization + this caveat. **Waveforms (8G part 2) still TODO.**
+
 ### Changed — Canonical story-trace expanded 66 → 223 samples (richer multi-incident demo)
 - **Modified ONLY `edge_analytics_tb.v`** (every RTL `.v` module stays frozen/untouched) and
   **regenerated `demo/mission_control_data.txt`**. The trace now runs **223 samples** (~210 target)
