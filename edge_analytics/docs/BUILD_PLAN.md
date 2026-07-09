@@ -270,18 +270,63 @@
 - **Done when:** the early-warning fires ahead of the actual dry threshold on a declining
   trace, and stays quiet otherwise.
 
-### Phase 8C — strengthen sensor fusion (make the fusion story headline-worthy)   Status: ⬜
-- **Owner:** RTL lead. **Depends on:** Phase 3.
-- **Note:** fusion ALREADY exists (`crop_health` score + temp-compensated weed). This
-  phase makes it *prominent*, not from-scratch. Pick ONE (lowest-risk first):
-  - **(pref) Add a 4th channel — humidity** (`NUM_CH`→4): the pipeline is channel-
-    parameterized, so it's mostly wiring. Fold humidity into heat logic (`hot && low
-    humidity ⇒ real heat stress`) and the health score. Demonstrates scalability.
-  - OR make `crop_health` a **weighted sum** (named weights) instead of fixed penalties,
-    so "fusion" is explicit and tunable.
-- **Testbench:** show the fused verdict changing correctly when a second channel moves
-  while the first is steady (proves it's genuine fusion, not one dominant channel).
-- **Done when:** the fusion output responds to the added/weighted channel as designed.
+### Phase 8C — JOINT / CORRELATED fusion (make the RTL non-trivial)   Status: ⬜
+- **Owner:** RTL lead. **Depends on:** Phase 3.  **Decision (grill):** the unique-
+  implementation claim ("analytics in silicon, not software") only survives if the RTL
+  is more than independent comparators. So upgrade fusion from **OR-of-thresholds** to a
+  **correlated judgment** — the chip reasons about *combinations*, not each sensor alone.
+- **⚠️ Do NOT add a humidity channel.** That would push `NUM_CH` 3→4 and break the FROZEN
+  17-field dashboard contract (`INTERFACES.md §3`). Keep 3 channels; make the *fusion
+  logic* smarter, not wider.
+- **Build (extend `analytics_engine.v` fusion):**
+  - Generalize the temp-compensated weed idea to the WHOLE verdict: decisions depend on
+    channel *combinations*, e.g. `real_heat_stress = hot && (avg_moisture falling)`;
+    `real_dry = dry && !(recent pump recovery)`; `nutrient_crisis = low_nutrient && low
+    crop_health`. Correlated conditions, not 3 lone thresholds.
+  - Make `crop_health` an explicit **weighted, interaction-aware score** (named weights in
+    `INTERFACES.md §5`) rather than fixed independent penalties — so combined stress
+    (e.g. dry AND hot together) costs MORE than the sum of the two alone.
+- **Testbench:** prove it's genuine fusion — a case where each channel alone looks "fine"
+  but their *combination* is a problem (only a joint detector catches it), and the
+  temp-compensated weed case (fast drop + normal temp) still holds.
+- **Done when:** a combination-only stress is detected that independent thresholds miss,
+  and single-channel behaviour is unchanged.
+
+### Phase 8F — `adaptive_anomaly` (TEDA self-tuning anomaly detector)  ⭐ Status: ⬜
+- **Owner:** RTL lead. **Depends on:** Phase 3.  **Interface:** `INTERFACES.md` §7.
+  **Backed by:** `papers/` TEDA-FPGA (138 ns, 7.2 MSPS, <7% LUTs) — cite the numbers.
+- **Goal:** replace the fixed rail-stuck `if (avg==0||avg==4095)` with a block that
+  **learns each sensor's own normal and flags statistical outliers** — parameter-free,
+  self-calibrating. This is the "AI at the edge" bonus made real and the most
+  researcher-impressive block; a judge can point at it and say "that's a real algorithm."
+- **Build (`adaptive_anomaly.v`) — TEDA reduced to a divider-free datapath:**
+  The TEDA eccentricity outlier test algebraically reduces to a clean Chebyshev form:
+  **anomaly ⇔ `(x − μ)² > m²·V`** (m = `TEDA_SIGMA_M`, V = variance). NO division in the test.
+  Per channel keep two state registers **μ (mean)** and **V (variance)**, updated every
+  valid sample by an **exponential moving average (shift, not divide)** — this is the
+  hardware-friendly recursive form AND it tracks slow drift:
+  ```
+  diff  = x - μ                    // subtractor
+  μ'    = μ + (diff >>> α)         // EMA mean update  (α = TEDA_ALPHA, arithmetic shift)
+  sq    = diff * diff              // THE one multiplier: (x-μ)²
+  V'    = V + ((sq - V) >>> α)     // EMA variance update
+  bound = m²·V                     // m=3 → 9·V = (V<<3)+V  (shift+add, no multiplier)
+  anomaly = (sq > bound)           // comparator ; use pre-update μ,V for the test
+  ```
+  - Cost per channel: **1 multiplier** (diff²) + ~3 add/sub + fixed shifts (free wiring) +
+    1 comparator + μ/V registers + warm-up counter. Time-share the multiplier across the
+    3 channels if area-tight. Use a wide reg for `sq`/`bound` to avoid overflow. Fixed-point.
+  - Output `anomaly` (+ optional per-channel `anom_ch`) into `analytics_engine`; keep the
+    fixed **rail-stuck** check (`x==0||x==4095`) OR'd in as a fast path for a dead sensor.
+  - **Warm-up guard:** suppress flags until `n >= TEDA_WARMUP` samples (μ/V not trustworthy yet).
+  - **This block is drawable as a schematic** (feedback registers + multiplier + comparator)
+    → use it for the Phase-8G "show the chip" datapath visual (VLSI credibility).
+- **Testbench (`adaptive_anomaly_tb.v`):** feed a channel that sits at ~600±20 then
+  spikes to 660 (NOT a rail) → confirm TEDA flags it while a fixed rail-check would miss
+  it. Confirm no false flags during warm-up or on normal jitter.
+- **Done when:** the self-tuning detector catches an off-baseline outlier a fixed
+  threshold misses, with no false alarms on normal noise. (**Fallback:** if time slips,
+  this is the one to defer — frame it via the TEDA-FPGA paper and build if able.)
 
 ### Phase 8D — quantify the edge win (the number that wins the argument)   Status: ⬜
 - **Owner:** RTL lead + slides (Teammate D). **Depends on:** Phase 8A (`msg_count`).
@@ -297,8 +342,24 @@
   transmitted → X% less data / radio-on time vs streaming to the cloud."
 
 ### Phase 8E — remaining bonuses (as time allows)   Status: ⬜
-- `adaptive_anomaly.v` (self-learning thresholds = AI bonus); Teammate B synthesis
-  reports; Teammate D slides/story. (Extra channels now live in 8C; `uart_tx.v` in 8A.)
+- Teammate B synthesis reports; Teammate D slides/story. (`adaptive_anomaly` is now its
+  own Phase 8F; joint fusion is 8C; `uart_tx.v` realism lives in 8A.)
+
+### Phase 8G — visualization artifacts ("show the chip") — presentation-critical   Status: ⬜
+- **Owner:** RTL lead + synthesis (B) + presentation (D). **Why:** judges (and rival
+  teams) expect to SEE the chip. Produce THREE distinct artifacts (each answers a
+  different question):
+  1. **Waveforms (behaviour)** — already dumped to `dump.vcd`; open in `gtkwave`. For a
+     shareable online copy, paste RTL+tb into **EDA Playground** → EPWave. Capture the
+     money shot: raw (jagged) vs smoothed (clean) + `pump_on`/alerts firing.
+  2. **Block/architecture diagram (story)** — clean redraw of the datapath: sensors →
+     `sensor_collector` → `smoothing_stage` → `analytics_engine` (joint fusion + TEDA
+     anomaly) → `output_analytics` → **{Tier-1 actuators | Tier-2 `comms_tx`}**. Deck asset.
+  3. **Synthesized schematic (proof it's real silicon)** ⭐ — generate FROM the RTL:
+     Vivado *RTL Analysis → Schematic* (+ utilization/timing/power), OR locally on the
+     Mac via **Yosys** (`brew install yosys` → `read_verilog; synth; show`). This is the
+     highest-impact "it's a real circuit" visual — currently our biggest missing artifact.
+- **Done when:** all three exist and are in the deck / repo.
 
 ## Phase 9 — integrate, rehearse, submit   Status: ⬜
 - Full run-through, capture waveforms + a dashboard recording, finalize the deck.

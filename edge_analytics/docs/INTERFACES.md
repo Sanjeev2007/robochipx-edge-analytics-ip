@@ -204,7 +204,7 @@ Example: `24,26,60,25,39,60,25,1,0,0,0,0,0,0,1,76,0`
 | `COLD_THRESH` | 100 | cold = `avg_temp < 100` |
 | `HIST_DEPTH` | 4 | how many valid-samples back the weed detector compares moisture |
 | `RATE_THRESH` | 100 | weed = moisture dropped > 100 counts over `HIST_DEPTH` samples AND `not hot` |
-| anomaly | — | rail-stuck: `avg_moisture == 0 \|\| avg_moisture == 4095` (adaptive version = Phase 8) |
+| anomaly | — | v1 rail-stuck: `avg_moisture == 0 \|\| avg_moisture == 4095`. **Phase 8F replaces/augments this with a self-tuning TEDA detector** (running μ+σ², Chebyshev eccentricity, divider-free) — see §7 `TEDA_*` params |
 
 **crop_health penalties** (start 255, subtract, clamp ≥0): dry −60, low_nutrient −50,
 hot −50, cold −50, weed −80, anomaly −40.
@@ -260,7 +260,14 @@ else WARNING(1) if exactly one mild condition; else SAFE(0).
 | `MSG_GAP` | 8 | comms rate-limit: min valid-cycles before the SAME event re-transmits |
 | `RAW_PKT_BYTES` | 12 | assumed bytes if we streamed each raw sample to cloud (edge-win math) |
 | `ALERT_PKT_BYTES` | 8 | bytes per transmitted alert packet (edge-win math) |
-| `NUM_CH` (8C opt) | 3→4 | add humidity as a 4th channel to headline the fusion story |
+| `TEDA_SIGMA_M` | 3 | Phase 8F: anomaly if `(x−μ)² > m²·V` (m = sigma multiplier; Chebyshev) |
+| `TEDA_ALPHA` | 3 | Phase 8F: EMA shift for μ/V update (`>>α` ⇒ weight 1/2^α = 1/8); larger α = slower/steadier baseline |
+| `TEDA_WARMUP` | 8 | Phase 8F: suppress anomaly flags until this many samples seen (μ/V warm-up) |
+
+> **Phase 8C fusion:** stays at `NUM_CH=3` — we do NOT add a humidity channel (it would
+> break the frozen 17-field dashboard contract §3). Fusion is made unique by making the
+> *logic* correlated/joint (see BUILD_PLAN 8C), not by adding channels. `crop_health`
+> becomes an interaction-aware weighted score (combined stress penalised more than the sum).
 
 > These are **provisional** — expect tuning after the grill session and the judge's
 > reference papers. Keep them as Verilog `parameter`s, never hard-coded literals.

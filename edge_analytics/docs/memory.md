@@ -78,8 +78,10 @@ Three sensor channels for the demo: **soil moisture, nutrient (NPK), temperature
 | 5.5 | `edge_analytics_tb` egress | Testbench-only: emit the dashboard's 17-field CSV (header once + row/cycle) with count→display-unit scaling; RTL untouched | ✅ done + simulated |
 | 8A | `comms_tx` ⭐ | **Differentiator:** event-triggered alert packet (severity+action_code) to the remote caretaker; rate-limited; `msg_count`. The "beyond automation" answer | ⬜ planned |
 | 8B | `predictor` | Divider-free moisture-slope extrapolation → `predict_dry`/PREDICT_DRY early warning; reuses the weed `dropped` primitive | ⬜ planned |
-| 8C | fusion strengthen | Add humidity 4th channel OR weighted `crop_health` (fusion already partly exists) | ⬜ planned |
+| 8C | JOINT fusion | Upgrade `analytics_engine` fusion from OR-of-thresholds → correlated/interaction-aware `crop_health` (NO humidity channel — keeps 3-ch dashboard contract) | ⬜ planned |
 | 8D | edge-win metric | Testbench-only: samples-processed vs packets-transmitted → % data / radio-on saved | ⬜ planned |
+| 8F | `adaptive_anomaly` ⭐ | TEDA self-tuning anomaly: running μ+σ² per channel, Chebyshev eccentricity, divider-free (cross-mult). Replaces fixed rail-check. The researcher-impressive block | ⬜ planned |
+| 8G | visualization | 3 artifacts: gtkwave/EPWave waveforms + block diagram + **Vivado/Yosys synthesized schematic** ("show the chip") | ⬜ planned |
 
 ## 7. Key design decisions
 - **Window size is a power of two** (`N = 2^LOG2_N`) so "divide by N" is a cheap
@@ -158,9 +160,14 @@ _(Last live snapshot. Update when the situation changes.)_
 - **END-TO-END READY:** `vvp simulation.vvp | python3 robochipx_dashboard_handoff/edge_agri_dashboard.py`
   should now drive the real dashboard GUI on the Mac. (GUI window can't be launched in a
   headless agent shell — the human runs it; everything up to the GUI is verified.)
-- **NEXT ACTIONS:** (1) ~~reconcile egress~~ ✅; (2) ~~integration fixes~~ ✅; (3) generate
-  + verify the canonical story-trace; (4) Phase 6 full demo (swap trace, capture
-  waveforms, run the live dashboard on the Mac — see §8 checkpoint).
+- **NEXT ACTIONS (RESUME POINT):** Phases 1–5.5 done. **Skip to Phase 8 (the
+  differentiator) — do NOT do Phase 6 yet.** Phase 8 changes the chip (adds `comms_tx`,
+  swaps in TEDA, reworks fusion, re-integrates the top), so Phase 6's final
+  demo/waveform/dashboard/schematic capture is the LAST step, run ONCE on the
+  feature-complete chip (avoids capturing the demo twice; the demo should SHOW the
+  differentiator). Phase 8 build order: **8A `comms_tx` (flagship) → 8D edge-win number
+  → 8C joint fusion → regenerate schematic (8G) → 8F TEDA.** The canonical story-trace
+  (data teammate / lead-verified) feeds the final Phase 6.
 
 ## 11. 🟣 EVALUATION FEEDBACK → DIFFERENTIATOR PIVOT (Phase 8 tier)
 _A judge reviewed the project and said it's **"too common — just automation, no unique
@@ -191,6 +198,58 @@ edge analytics saves power). Real new RTL = just 2 modules (`comms_tx`, `predict
 **reference papers** will land and may retune thresholds/packet layout — all such
 constants are named `parameter`s flagged "TUNE" in `INTERFACES.md` §5/§7. Do NOT write
 Phase 8 RTL until the grill + papers are in unless the user says go.
+
+### Grill-session decisions (locked in — session of the pivot)
+1. **Differentiator = triage + quantified sparseness**, NOT "it sends a message." Pitch the
+   on-chip decision of *whether a human is needed* + the ~85–93% fewer transmissions.
+   Demote "sends a message" to a delivery detail.
+2. **Two physically distinct links.** Local telemetry (dashboard §3, cheap/wired/on-site,
+   streams every sample = fine) vs long-range caretaker radio (`comms_tx` §6, battery,
+   sparse). **The 85% edge-win applies ONLY to the caretaker link** — always label it so;
+   pre-empts "but your dashboard streams everything" attack. (Slide saved in PRESENTATION.)
+3. **Unique IMPLEMENTATION** (judge's real bar) = two layers: (a) framing — analytics as
+   dedicated silicon, which NO surveyed paper does (all software on Pi/ESP32/cloud); (b)
+   substance — deepen the RTL beyond comparators so it survives inspection: **joint/
+   correlated fusion (8C)** + **TEDA self-tuning anomaly (8F)**. "It's in Verilog" alone
+   is NOT enough — a judge who opens `if(x<200)` says "trivial."
+4. **TEDA = the method that implements self-tuning anomaly** (not an extra feature). One
+   small block. Fallback-if-time item (most math-y), but 15h left → comfortable.
+5. **Visualization gap (Phase 8G):** must SHOW the chip like rival teams — waveforms
+   (have) + block diagram + **synthesized schematic** (Vivado RTL schematic OR local Yosys
+   `brew install yosys`). Schematic = biggest missing artifact; highest "it's real silicon" impact.
+   - ✅ **DONE (baseline):** Yosys+graphviz installed; generated `docs/schematic/
+     chip_block_diagram.{svg,png,dot}` for the CURRENT chip (Phases 1–5) — shows the 4
+     sub-blocks (sensor_collector → smoothing_stage → analytics_engine → output_analytics)
+     wired as a pipeline with the latency-alignment delay registers.
+   - ✅ **Baseline synth numbers** (Yosys generic, pre-Phase-8): **1601 cells, ~867
+     flip-flops, ~727 logic gates, 857 wires.** On Artix-7 xc7a35t (~41.6k FFs) that's
+     ~2% of FFs → the "tiny, lightweight edge IP" story is real. NOTE: these are Yosys
+     generic-synth counts, NOT Vivado LUT-mapped — Vivado gives exact LUT/Fmax/power.
+   - **Judge said "FPGA"** → FPGA synthesis (schematic + utilization/timing/power) is
+     ELEVATED from bonus to expected. Regenerate schematic after Phase 8 modules land.
+   - **RESOLVED: NO physical FPGA board on the team → Level 1 only** (FPGA *synthesis*
+     reports + schematic; NO live-board/LED demo). This FULLY satisfies the judge's "FPGA"
+     ask — simulation + FPGA synthesis (Vivado/Quartus utilization/timing/power + schematic)
+     is a complete hardware story without any board. Do NOT chase a board demo. FPGA
+     deliverable = (a) Yosys schematic ✅ done on Mac, (b) Vivado/Quartus reports from the
+     synthesis teammate on Windows (exact LUT/Fmax/power + Vivado's own schematic).
+6. **NO humidity channel** — would break the frozen 17-field dashboard contract; make
+   fusion smarter, not wider.
+7. **Acres-of-land scale — RESOLVED (option a):** FRAME it, don't build a multi-node net.
+   - *Level 1 (why silicon):* at 1000s of nodes, cost+power/node dominate — a Pi (watts,
+     $35) can't scale; a µW/cents custom IP is the only option. This is the real "why hardware."
+   - *Level 2 (TEDA is a scale enabler):* can't hand-tune thresholds for 1000s of nodes over
+     varied soil/sun/slope → each node MUST self-calibrate → TEDA (8F) is necessity, not bonus.
+   - *Level 3 (the "new" idea, future-work slide only):* SPATIAL/cross-node anomaly ("this
+     zone depletes faster than its neighbours" → weed patch / line leak / disease front) +
+     cluster-head aggregation (avoid a radio storm when many nodes alarm at once). Present
+     as future architecture; do NOT build the network. (Optional cheap hook we declined:
+     a `field_avg` deviation comparator in one node.)
+8. **Anomaly detection HOW (asked explicitly):** TEDA reduces to `(x−μ)² > m²·V`, divider-
+   free; μ,V are EMA-updated state registers (shift, not divide); 1 multiplier + adders +
+   comparator per channel. Full datapath in BUILD_PLAN 8F. Team is "VLSI Veriyans" — this
+   block is the drawable-as-a-real-circuit centrepiece (feedback state + multiplier), unlike
+   a bare comparator threshold. Deliverable is a real chip; Phase 8 is all RTL + 8G schematic.
 
 **Papers gathered → `edge_analytics/papers/PAPERS.md`** (catalogued + tagged to features).
 User pasted 7 (mostly edge/IoT-agri surveys + 2 common-baseline IoT builds). Gap was: NO

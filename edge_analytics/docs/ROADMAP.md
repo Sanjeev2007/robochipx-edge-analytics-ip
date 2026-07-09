@@ -20,10 +20,10 @@
 ### Tier 1 — BONUS: smart RTL (high value, achievable)
 | Module | Role | Bonus |
 |---|---|---|
-| `adaptive_anomaly` | Learns running mean + mean-abs-deviation; flags `\|x-mean\| > k·dev`. Self-calibrating, no fixed thresholds. | AI-driven anomaly detection |
-| `crop_health` | Fuse moisture+nutrient+temp into one health score | Multi-sensor fusion |
+| `adaptive_anomaly` (TEDA) | Running mean+variance; flags `(x−μ)² > m²·V` (Chebyshev). Self-calibrating, no fixed thresholds, divider-free. **See BUILD_PLAN 8F for the datapath.** | AI-driven anomaly detection |
+| `crop_health` (joint) | Fuse moisture+nutrient+temp into one *correlated* health score (combinations, not lone thresholds) | Multi-sensor fusion |
 | temp-compensated weed logic | Fast depletion + normal temp = weed; + high temp = evaporation | fusion / anomaly |
-| extra channels (humidity, light) | Architecture is channel-parameterized, so cheap to add | advanced analytics |
+| ~~extra channels (humidity, light)~~ | **Dropped:** would break the frozen 17-field dashboard contract. Make fusion smarter, not wider. | — |
 
 ### Tier 2 — BONUS: interface + demo
 | Module / task | Role | Bonus |
@@ -39,9 +39,10 @@
 | Module / task | Role | Bonus |
 |---|---|---|
 | `comms_tx` ⭐ | **Two-tier response:** event-triggered alert packet (with a recommended *action*) to the remote caretaker over low-power radio — not just a dashboard | Differentiator: machine-to-human comms |
-| `predictor` | Extrapolate the moisture-depletion slope (divider-free) → warn *before* dry-out | Predictive / trend analytics |
-| strengthen fusion | Add humidity channel or weighted crop-health sum | Multi-sensor fusion (headline) |
-| edge-win quantification | Count samples-processed vs packets-transmitted → % data / radio-on saved | Proof the edge design pays off |
+| **JOINT fusion** (8C) | Upgrade `crop_health` from OR-of-thresholds → correlated/interaction-aware judgment (NO humidity — keeps the 3-ch dashboard contract) | Multi-sensor fusion (headline) |
+| **`adaptive_anomaly` TEDA** (8F) ⭐ | Self-tuning: running μ+σ², test `(x−μ)² > m²·V`, divider-free. Drawable datapath (multiplier + feedback state) | AI-at-edge anomaly + VLSI credibility |
+| edge-win quantification (8D) | Count samples-processed vs packets-transmitted → % data / radio-on saved | Proof the edge design pays off |
+| `predictor` (8B, lowest pri) | Extrapolate the moisture-depletion slope (divider-free) → warn *before* dry-out | Predictive / trend analytics |
 
 ### Tier 3 — STRETCH / wow (only if ahead of schedule)
 - **Multi-zone:** replicate the pipeline for N plants/zones + aggregate (scalability story).
@@ -60,8 +61,12 @@ Note: `iverilog` also runs on Windows, and EDA Playground (edaplayground.com) is
 free in-browser simulator — so teammates CAN write/test RTL too if they want; they
 push to GitHub and the lead integrates.
 
-Deliverable is simulation-only, so **Windows synthesis is a BONUS** (proves
-synthesizability + gives resource/timing numbers), not the critical path.
+Deliverable is simulation-only, BUT **the judge explicitly mentioned FPGA** — so
+**FPGA synthesis is now ELEVATED from optional bonus to an expected deliverable.** We must
+show the design is real FPGA-able hardware: run it through Vivado/Quartus (or local Yosys)
+→ **synthesized schematic + utilization/timing/power on a real FPGA target** (e.g. Xilinx
+Artix-7 xc7a35t / Basys-3). Actual board deployment is still a stretch, but the FPGA
+synthesis reports + schematic are no longer skippable. See `SYNTHESIS_TASKS.md` + Phase 8G.
 
 - **You — RTL Lead & Integrator** (Mac + Claude Code): generate all core + bonus
   modules and testbenches, run all sims, capture waveforms, own

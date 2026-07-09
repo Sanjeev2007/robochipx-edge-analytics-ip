@@ -98,20 +98,30 @@ comms channel and the "why edge?" justification are the **same feature**.
   heater/cover (`alert_frost`).
 - **Edge value:** temperature emergencies unfold in minutes; local reaction wins.
 
-### 6. Self-checking (adaptive anomaly detection = "AI at the edge")
-- **Detect:** the chip *learns* each sensor's normal mean and variability and flags
-  anything outside `mean ± k·deviation`, plus stuck/flatlined or impossible values.
+### 6. Self-checking (self-tuning anomaly detection = "AI at the edge") — Phase 8F ⭐
+- **Detect:** a **TEDA** block (Typicality & Eccentricity Data Analytics) keeps a running
+  **mean + variance** per channel and flags any reading whose *eccentricity* exceeds a
+  **Chebyshev bound** — i.e. statistically far from *this sensor's own learned normal*.
+  No hand-picked threshold, no history buffer, no divider (Chebyshev test done by
+  cross-multiplication). Parameter-free and self-calibrating. Also keeps the fast
+  stuck-at-rail check as an OR fast-path.
 - **Act:** mark the sensor bad, ignore it, keep running on the others (`alert_anomaly`).
-- **Edge value:** the system stays trustworthy even when a sensor breaks.
+- **Edge value:** stays trustworthy even when a sensor breaks — and catches *off-baseline*
+  faults (e.g. 660 when normal is 600±20) that a fixed rail-check misses entirely.
+- **Why it matters to the pitch:** this is the block a researcher-judge respects — real
+  adaptive hardware, backed by the TEDA-FPGA paper (138 ns, <7% LUTs), not an `if`.
 
 ### 7. Crop-health fusion & relocation advice
 - **Detect:** combine all channels into one crop-health score.
 - **Act:** publish `status` (SAFE / WARNING / CRITICAL); if consistently CRITICAL
   despite watering and feeding, recommend the plant be relocated
   (`relocate_recommend`) — the environment itself may be unsuitable.
-- **Strengthen (Phase 8C):** add a 4th channel (humidity) — the pipeline is
-  channel-parameterized, so it's cheap — or make the score an explicit *weighted sum*.
-  Makes "multi-sensor fusion" a headline feature rather than an implicit one.
+- **Strengthen (Phase 8C — JOINT/correlated fusion):** upgrade from OR-of-independent-
+  thresholds to a **correlated judgment** — the chip reasons about *combinations* (dry
+  AND hot together costs more than either alone; `real_heat_stress = hot && moisture
+  falling`). This is the difference between "real fusion" and "three comparators," and
+  it's what makes the *silicon implementation* itself unique — not just that it's in RTL.
+  (We keep 3 channels — adding humidity would break the frozen 17-field dashboard contract.)
 
 ### 8. Predictive watering (Phase 8B — *predict, don't just react*)
 - **Detect:** the chip already knows how fast moisture is falling (`dropped`, the same

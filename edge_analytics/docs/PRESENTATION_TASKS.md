@@ -27,7 +27,16 @@ results (waveforms, synthesis numbers, live dashboard).
 6. **Results** — waveforms (raw vs smoothed), the live dashboard + event log, synthesis
    numbers ("3% of chip, 150 MHz, 40 mW"). This is the proof section.
 7. **Requirements coverage** — mandatory 1–4 all done + bonuses (anomaly, fusion, cloud egress).
-8. **SDG alignment + future** (multi-zone, predictive watering, real FPGA).
+8. **Scaling to acres + SDG + future** — the "real-world scale" slide (judge asked for it):
+   - *Why silicon scales:* 1000s of nodes → per-node cost/power dominate; a Pi (watts, $35)
+     can't; a µW/cents custom IP is the only viable option. **This is the real "why hardware."**
+   - *Self-calibration is mandatory at scale:* can't hand-tune thresholds for 1000s of nodes
+     across varied soil/sun/slope → our TEDA self-tuning anomaly block makes deployment possible.
+   - *The novel direction (future work):* **spatial/cross-node anomaly** — "this zone depletes
+     faster than its neighbours" catches weed patches / line leaks / a disease front that no
+     single node sees; plus cluster-head **aggregation** so thousands of nodes don't cause a
+     radio storm. Present as architecture + diagram — we FRAME it, we don't build the network.
+   - Then SDG (9 & 11) + roadmap (multi-zone, predictive watering, real FPGA).
 
 ## ⭐ THE DIFFERENTIATOR SLIDE — "Why edge? The 85% number" (use this — judge feedback)
 > A judge said the project is "too common, just automation, no unique factor." THIS slide
@@ -51,6 +60,17 @@ results (waveforms, synthesis numbers, live dashboard).
 | Literature (Lozoya et al. 2021, irrigation) | 4,032 messages | ~480 → **>85% fewer, ~20% less power** |
 | Crop / irrigation outcome | fine | **identical** |
 
+**⚠️ Pre-empt the obvious attack — "but your dashboard streams every sample!":**
+The chip has **TWO physically different links**, and the 85% applies to ONLY one:
+- **Local telemetry link** (the dashboard, `INTERFACES.md §3`) — short-range/wired
+  (UART→gateway at the farmhouse, or on-site WiFi). Cheap, always-on → streaming every
+  sample here is fine. This is for the on-site operator + the demo.
+- **Long-range caretaker link** (`comms_tx`, §6) — LoRa/cellular to a phone that may be
+  kilometres away, on battery. Expensive, power-critical → **this is the one that stays
+  silent**, and the 85%/93% and Lozoya's numbers apply HERE ONLY.
+So "the dashboard shows every reading" is NOT a contradiction — it's a different, cheap,
+local channel. Always label the edge-win metric "over the long-range caretaker link."
+
 **One-liner to say out loud:**
 > *"A normal IoT node streams every reading to the cloud and drains its battery talking.
 > Our chip does the analytics on-device and only speaks when a human is actually needed —
@@ -64,6 +84,19 @@ results (waveforms, synthesis numbers, live dashboard).
   just delivery.
 - Backed by real work: our testbench prints `samples_processed` vs `msg_count` (Phase 8D),
   and Lozoya et al. 2021 (MDPI Sensors 21:5541) measured the same 85%/20% in the field.
+
+## "Show the chip" — the 3 visual artifacts (rival teams have these; we need all 3)
+Each answers a different judge question. Build plan: `BUILD_PLAN.md` Phase 8G.
+1. **Waveforms (behaviour)** — from `dump.vcd` in `gtkwave`, or paste RTL+tb into
+   **EDA Playground → EPWave** for a shareable online view. Money shot: raw (jagged) vs
+   smoothed (clean) traces + `pump_on`/alerts firing on the story arc.
+2. **Block/architecture diagram (the story)** — sensors → collector → smoothing →
+   analytics (**joint fusion + TEDA anomaly**) → output → **{Tier-1 actuators | Tier-2
+   comms_tx}**. Draw it clean; it anchors the Architecture slide.
+3. **Synthesized schematic (it's REAL silicon)** ⭐ — from the synthesis owner: Vivado
+   *RTL Analysis → Schematic* + utilization/timing/power numbers. (Or locally via Yosys.)
+   This is the highest-impact "it's a real circuit, not a script" proof — put it on the
+   Architecture and Results slides. **Currently our biggest missing artifact — get it early.**
 
 ## Demo script (the story arc)
 Narrate the story trace live: healthy crop → soil dries → **pump auto-fires** → recovers

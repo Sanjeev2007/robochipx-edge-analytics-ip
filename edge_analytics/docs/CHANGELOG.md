@@ -5,6 +5,32 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Planning — Grill-session decisions (refined the Phase-8 differentiator)
+Stress-tested the differentiator plan. Decisions locked (full record: `memory.md §11`):
+- **Differentiator = on-chip triage + quantified sparseness, NOT "sends a message."**
+  Pitch the chip deciding *whether a human is needed* + ~85–93% fewer transmissions.
+- **Two physically distinct links:** local telemetry (dashboard §3, streams everything,
+  cheap) vs long-range caretaker radio (`comms_tx` §6, sparse). **The 85% edge-win applies
+  ONLY to the caretaker link** — pre-empts the "but your dashboard streams every sample"
+  attack. Saved as a talking point in `PRESENTATION_TASKS.md`.
+- **"Unique implementation" answer = silicon framing + non-trivial RTL.** Deepened two
+  blocks so the code survives inspection:
+  - **Phase 8C reworked → JOINT/correlated fusion** (was: add humidity). Upgrade
+    `analytics_engine` from OR-of-thresholds to interaction-aware `crop_health`. **No
+    humidity channel** — it would break the frozen 17-field dashboard contract.
+  - **New Phase 8F `adaptive_anomaly` (TEDA)** — self-tuning anomaly: running μ+σ² per
+    channel, Chebyshev eccentricity, divider-free (cross-multiplication). Replaces the
+    fixed rail-check; the researcher-impressive block. Backed by the TEDA-FPGA paper.
+- **New Phase 8G — visualization artifacts** ("show the chip" like rival teams):
+  gtkwave/EPWave waveforms + block diagram + **synthesized schematic** (Vivado *RTL
+  Analysis → Schematic*, or local **Yosys** — added a ready command to `SYNTHESIS_TASKS.md`).
+  Schematic flagged as our biggest missing, highest-impact artifact.
+- **`INTERFACES.md`:** added `TEDA_SIGMA_M`/`TEDA_WARMUP` params (§7); anomaly row (§5)
+  now points to the Phase-8F TEDA detector; fusion note = joint, 3 channels.
+- **`FEATURES.md`:** feature 6 rewritten as self-tuning TEDA; fusion detail = joint/correlated.
+- **Open thread:** real-world *acres-of-land scale* differentiation (spatial/cross-node
+  anomaly, aggregation, collision-aware uplink) — next grill branch, not yet resolved.
+
 ### Docs — Research paper summaries (individual + aggregate)
 - Read and summarized all 10 downloaded reference PDFs in `papers/`. New files:
   - `papers/SUMMARIES.md` — one structured summary per paper (citation, what-it-is,
