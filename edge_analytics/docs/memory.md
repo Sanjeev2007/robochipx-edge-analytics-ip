@@ -70,7 +70,7 @@ Three sensor channels for the demo: **soil moisture, nutrient (NPK), temperature
 | 1 | `sensor_collector` | Collect the 3 sensor channels in parallel, add a timestamp counter | ✅ built + simulated |
 | 2 | `moving_avg` | Per-channel smoothing (running accumulator + shift-divide) | ✅ built + simulated |
 | 2b | `smoothing_stage` | Phase 2 wiring: `moving_avg` ×3 (one/channel) + 1-cycle timestamp delay to keep "when" aligned with the smoothed set | ✅ built + simulated |
-| 3 | `analytics_engine` | Thresholds → status; plus depletion-rate check for weed/anomaly | ⬜ planned |
+| 3 | `analytics_engine` | Thresholds → status; plus depletion-rate check for weed/anomaly | ✅ built + simulated |
 | 4 | `output_analytics` | Registered outputs: `pump_on`, `alert_nutrient`, `alert_weed`, status | ⬜ planned |
 | 5 | `edge_analytics_top` | Wire everything together (build LAST) | ⬜ planned |
 

@@ -61,7 +61,7 @@
   all line up on the same cycle.
 - **Done when:** each smoothed output follows its channel, and timestamp stays aligned.
 
-## Phase 3 — `analytics_engine`   (mandatory #3 + bonuses)   Status: ⬜
+## Phase 3 — `analytics_engine`   (mandatory #3 + bonuses)   Status: ✅ built + simulated
 - **Owner:** RTL lead. **Depends on:** Phase 2.  **Interface:** `INTERFACES.md` §2 `analytics_engine`.
 - **Goal:** turn the smoothed set into decisions, a health score, a status, AND
   timestamp each event. Register all outputs (1-cycle), so `out_valid` = `in_valid`
