@@ -125,8 +125,7 @@ Waveform to capture: raw sensor → smoothed average → `pump_on` / alert flags
 ## 10. 🔴 CURRENT STATUS — read this to know where we are RIGHT NOW
 _(Last live snapshot. Update when the situation changes.)_
 - **Built:** Phases 1–5 (FULL chip integrated + aligned output bundle) **and Phase 5.5
-  (egress reconciled to the dashboard's 17-field CSV)**. Phases 1–5 pushed; Phase 5.5
-  is a local testbench-only change ready to commit.
+  (egress reconciled to the dashboard's 17-field CSV)**. All pushed to `main`.
 - **✅ Phase 5.5 DONE (contract mismatch RESOLVED):** `edge_analytics_tb.v` now emits
   the dashboard's 17-field CSV — header once, then one row per `out_valid` cycle:
   `timestamp,moisture_raw,nutrient_raw,temp_raw,moisture_avg,nutrient_avg,temp_avg,
@@ -143,6 +142,15 @@ _(Last live snapshot. Update when the situation changes.)_
   a working 56-sample trace). Their trace is a later realism refinement.
 - **Teammates have NO coding assistant** (plain ChatGPT, no repo access) → each task
   sheet carries a fully self-contained paste-in prompt (see `DATA_TASKS.md`).
-- **NEXT ACTIONS:** (1) ~~reconcile egress~~ ✅ done; (2) generate + verify the canonical
-  story-trace; (3) Phase 6 full demo (swap trace, capture waveforms, live dashboard
-  integration on the Mac — see §8 checkpoint); (4) commit/push Phase 5.5.
+- **⚠️ TWO INTEGRATION FOLLOW-UPS found while verifying Phase 5.5 (fix before Phase 6 live demo):**
+  1. **tkinter missing on the Mac** — `python3` (Homebrew) has no `_tkinter`, so the
+     dashboard GUI won't launch. Fix: `brew install python-tk` (match the brew python
+     version). Needed for `vvp simulation.vvp | python3 edge_agri_dashboard.py`.
+  2. **Diagnostic banner pollutes the stream** — the testbench's `RESULT: PASS ...`
+     summary prints to stdout and the dashboard's loose parser turns it into ONE bogus
+     zero-sample. Fix: prefix all non-CSV/diagnostic testbench lines with `#` (the
+     dashboard's `parse_sample` skips `#` lines). Also mind the `VCD info:` line (it's
+     harmlessly skipped — 7 tokens < 8).
+- **NEXT ACTIONS:** (1) ~~reconcile egress~~ ✅ done; (2) fix the two follow-ups above;
+  (3) generate + verify the canonical story-trace; (4) Phase 6 full demo (swap trace,
+  capture waveforms, live dashboard integration on the Mac — see §8 checkpoint).
