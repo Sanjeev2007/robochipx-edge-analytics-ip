@@ -120,3 +120,29 @@ Waveform to capture: raw sensor → smoothed average → `pump_on` / alert flags
   actual cloud *service* is out of scope, but the chip's egress interface and the
   live dashboard are what we build and demo. (Corrected: earlier note said "out of
   RTL scope" — the egress interface IS in scope.)
+
+## 10. 🔴 CURRENT STATUS — read this to know where we are RIGHT NOW
+_(Last live snapshot. Update when the situation changes.)_
+- **Built & pushed:** Phases 1–5 — the FULL chip is integrated and streams the live
+  feed (`edge_analytics_top` + testbench). All on GitHub `main`.
+- **Dashboard handoff RECEIVED** at `edge_analytics/robochipx_dashboard_handoff/`
+  (working tkinter GUI `edge_agri_dashboard.py`, `demo_stream.py`, their contract docs).
+  ⚠️ **CONTRACT MISMATCH:** it does NOT use our `INTERFACES.md §3` `D`/`E` format. It
+  wants ONE 17-field CSV row per sample (header line; fields: timestamp, moisture/
+  nutrient/temp raw+avg, pump_on, dose_nutrient, alert_nutrient/weed/heat/frost/anomaly,
+  status, crop_health, relocate_recommend), values in physical units (~0–100, temp °C,
+  health 0–100), status as 0/1/2 or SAFE/WARNING/CRITICAL. Its parser is flexible
+  (skips headers, accepts key=value or positional CSV, has fallbacks).
+- **DECISION (recommended — adopt the dashboard's format):** rewrite our top testbench
+  `$display` to emit their 17-field CSV with count→unit **scaling** (moisture/nutrient
+  0–4095→0–100, temp 0–4095→0–50°C, health ×100/255), add `relocate_recommend`
+  (derive from status CRITICAL + low health, or print 0), and update `INTERFACES.md §3`
+  to match. Their dashboard stays UNTOUCHED (it's the finished, richer artifact).
+- **Data teammate:** on ChatGPT, at lunch. NOT a blocker — the lead/Claude can generate
+  and verify the canonical story-trace directly against the RTL (Phase 5 tb already has
+  a working 56-sample trace). Their trace is a later realism refinement.
+- **Teammates have NO coding assistant** (plain ChatGPT, no repo access) → each task
+  sheet carries a fully self-contained paste-in prompt (see `DATA_TASKS.md`).
+- **NEXT ACTIONS:** (1) reconcile egress → dashboard CSV format + scaling; (2) generate
+  + verify the canonical story-trace; (3) Phase 6 full demo; (4) integrate dashboard on
+  the Mac (see §8 checkpoint).

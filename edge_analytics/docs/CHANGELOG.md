@@ -20,6 +20,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   "the README rules" now point to `CLAUDE.md`.
 
 ### Repository & process (cont.)
+- **Dashboard handoff received & reviewed** (`edge_analytics/robochipx_dashboard_handoff/`):
+  a working tkinter GUI. ⚠️ It uses a DIFFERENT stream contract than our `INTERFACES.md §3`
+  (one 17-field CSV row, physical units 0–100, extra alert/dose/relocate columns).
+  **Plan: adopt the dashboard's format** — rewrite the top testbench egress to that CSV
+  with count→unit scaling and update `INTERFACES.md §3`; the dashboard stays untouched.
+  See `memory.md §10` for the live status snapshot.
 - **Reordered Phases 5/6 in `BUILD_PLAN.md`:** Phase 5 is now `edge_analytics_top`
   (integration + live egress stream — they're inseparable), Phase 6 is the full
   story-trace demo + handoffs. Added the critical **latency-alignment** spec (raw +3,
