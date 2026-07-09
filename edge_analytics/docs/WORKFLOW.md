@@ -3,13 +3,13 @@
 Everyone works on their own **branch** and merges into `main` via a Pull Request.
 `main` is always the working, integrated code — never push broken code to it directly.
 
-## Branch naming
-| Who / what | Branch |
-|---|---|
-| A build phase | `phase3-analytics`, `phase4-output`, … |
-| Teammate B (synthesis) | `teammate-b-synth` |
-| Teammate C (dashboard) | `teammate-c-dashboard` |
-| Teammate D (docs/slides) | `teammate-d-docs` |
+## Branch naming (by task, not by person)
+| Task | Branch | Task sheet |
+|---|---|---|
+| A build phase (RTL) | `phase3-analytics`, `phase4-output`, … | `BUILD_PLAN.md` |
+| Synthesis + story-trace | `synthesis` | `SYNTHESIS_TASKS.md` |
+| Dashboard | `dashboard` | `DASHBOARD_TASKS.md` |
+| Presentation / docs | `presentation` | `PRESENTATION_TASKS.md` |
 
 ## The loop (every contributor)
 ```bash
