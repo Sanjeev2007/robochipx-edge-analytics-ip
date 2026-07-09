@@ -92,6 +92,17 @@ Three sensor channels for the demo: **soil moisture, nutrient (NPK), temperature
   events (feeds the timestamped event log). See `INTERFACES.md` for the format.
 
 ## 8. Demo plan
+
+### ⚠️ DASHBOARD INTEGRATION CHECKPOINT (don't forget — happens at Phase 6)
+The dashboard is built in parallel against `stub_stream.py`. **Integration is one
+command change**, done ON THE MAC after Phase 5 gives the real stream:
+- Get the dashboard person's `dashboard.py` (their `dashboard` branch or they send it).
+- `pip install` whatever it needs (streamlit/matplotlib), ensure `python3` is present.
+- Swap the stub for the real sim — SAME dashboard, no code change (both use `INTERFACES.md §3`):
+  - dev:         `python3 stub_stream.py | python3 dashboard.py`
+  - integrated:  `vvp simulation.vvp     | python3 dashboard.py`
+- If a field mismatches, it shows instantly → quick fix on either side (contract is truth).
+
 Testbench acts as the field sensors. Sequence:
 1. Healthy crop — steady soil moisture / nutrient / temp with realistic jitter.
 2. Soil dries out slowly → filter confirms the real downward trend (not noise) →

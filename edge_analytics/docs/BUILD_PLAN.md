@@ -160,8 +160,12 @@
   confirm every feature demonstrates with correct events/timestamps (healthy → dry→pump
   → recovery → weed → heat → nutrient-low). Capture waveforms + the full stream.
 - **Done when:** the full narrative runs and every mandatory + bonus feature is visible.
+- **⚠️ DASHBOARD INTEGRATION (do not forget):** on the Mac, get the dashboard owner's
+  `dashboard.py`, `pip install` its deps, then swap the stub for the real sim — no
+  dashboard code change (same `INTERFACES.md §3` format):
+  `vvp simulation.vvp | python3 dashboard.py`. (See memory.md §8 checkpoint.)
 - **Handoffs fire here:** synthesis owner synthesizes the full top for reports; dashboard
-  owner points the dashboard at the real stream (`vvp simulation.vvp | python3 dashboard.py`).
+  owner hands over `dashboard.py` for the live integration above.
 
 ## Phase 7 — real-time dashboard   (Teammate C, parallel from Phase 0)   Status: ⬜
 - **Owner:** Teammate C. **Depends on:** the `INTERFACES.md` §3 stream format only.
