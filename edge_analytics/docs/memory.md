@@ -76,7 +76,7 @@ Three sensor channels for the demo: **soil moisture, nutrient (NPK), temperature
 | 4 | `output_analytics` | Registered actuator/alert bus: `pump_on` (hysteresis), `dose_nutrient`, `alert_*`, PUMP_ON/OFF events, status pass-through | ✅ built + simulated |
 | 5 | `edge_analytics_top` | Wire the 4 blocks + latency-alignment delay lines (raw/ts +3, avg +2); aligned output bundle | ✅ built + simulated |
 | 5.5 | `edge_analytics_tb` egress | Testbench-only: emit the dashboard's 17-field CSV (header once + row/cycle) with count→display-unit scaling; RTL untouched | ✅ done + simulated |
-| 8A | `comms_tx` ⭐ | **Differentiator:** event-triggered alert packet (severity+action_code) to the remote caretaker; rate-limited; `msg_count`. The "beyond automation" answer | ⬜ planned |
+| 8A | `comms_tx` ⭐ | **Differentiator:** event-triggered alert packet (severity+action_code) to the remote caretaker; rate-limited; `msg_count`. The "beyond automation" answer | ✅ built + simulated |
 | 8B | `predictor` | Divider-free moisture-slope extrapolation → `predict_dry`/PREDICT_DRY early warning; reuses the weed `dropped` primitive | ⬜ planned |
 | 8C | JOINT fusion | Upgrade `analytics_engine` fusion from OR-of-thresholds → correlated/interaction-aware `crop_health` (NO humidity channel — keeps 3-ch dashboard contract) | ⬜ planned |
 | 8D | edge-win metric | Testbench-only: samples-processed vs packets-transmitted → % data / radio-on saved | ⬜ planned |
@@ -160,14 +160,34 @@ _(Last live snapshot. Update when the situation changes.)_
 - **END-TO-END READY:** `vvp simulation.vvp | python3 robochipx_dashboard_handoff/edge_agri_dashboard.py`
   should now drive the real dashboard GUI on the Mac. (GUI window can't be launched in a
   headless agent shell — the human runs it; everything up to the GUI is verified.)
-- **NEXT ACTIONS (RESUME POINT):** Phases 1–5.5 done. **Skip to Phase 8 (the
-  differentiator) — do NOT do Phase 6 yet.** Phase 8 changes the chip (adds `comms_tx`,
-  swaps in TEDA, reworks fusion, re-integrates the top), so Phase 6's final
-  demo/waveform/dashboard/schematic capture is the LAST step, run ONCE on the
-  feature-complete chip (avoids capturing the demo twice; the demo should SHOW the
-  differentiator). Phase 8 build order: **8A `comms_tx` (flagship) → 8D edge-win number
-  → 8C joint fusion → regenerate schematic (8G) → 8F TEDA.** The canonical story-trace
-  (data teammate / lead-verified) feeds the final Phase 6.
+- **✅ Phase 8A DONE (the flagship differentiator — `comms_tx`):** built `comms_tx.v` as a
+  NEW standalone module (no existing `.v` touched). It watches `output_analytics`'s merged
+  event bus and, on a qualifying event edge, transmits ONE 64-bit `alert_packet`
+  (`{severity[4], event_code[4], action_code[4], crop_health[8], reserved[12],
+  event_timestamp[32]}`, MSB→LSB per §6) carrying a recommended caretaker action.
+  - **Two-tier split enforced:** human-needed events (WEED→INSPECT_WEED, SENSOR_ANOMALY→
+    CHECK_SENSOR, NUTRIENT_LOW→MANUAL_FERTILIZE, FROST_RISK→PROTECT_FROST, STATUS_CRITICAL→
+    RELOCATE_OR_REVIEW, PREDICT_DRY→PRE_IRRIGATE) build a packet; machine-handled
+    PUMP_ON/PUMP_OFF (and HEAT_STRESS, which has no caretaker action in §6) send NOTHING.
+  - **Severity** derived from event_id base AND status (escalates to CRITICAL if status==2).
+  - **Rate-limit** (`MSG_GAP`=8, §7 param): a down-counter blocks a REPEAT of the SAME event
+    for MSG_GAP valid cycles; a DIFFERENT event bypasses it. `msg_count[15:0]` tallies TX'd
+    packets (feeds Phase 8D). All constants are named `parameter`s/`localparam`s — no literals.
+  - **`comms_tx_tb.v`** drives WEED, PUMP_ON (no pkt), NUTRIENT_LOW, NUTRIENT_LOW rapid-repeat
+    (suppressed), FROST_RISK, PREDICT_DRY, HEAT_STRESS (no pkt). Self-check: exactly **4
+    packets**, each with correct sev/event/action/health/reserved/ts, and `msg_count==4`.
+    **Compiled + ran: RESULT PASS (0 errors)** (`iverilog -o simulation.vvp comms_tx.v
+    comms_tx_tb.v && vvp simulation.vvp`). VCD dumped. Outputs registered (1-cycle latency),
+    synthesizable, fully commented, clk/rst — per CLAUDE.md.
+  - **NOT yet wired into `edge_analytics_top`** — `comms_tx` is a standalone module + its own
+    tb for now. Top-level integration (tap `output_analytics`'s `event_id/event_timestamp/
+    status/crop_health` into `comms_tx`) is a later step, bundled with the Phase 6 re-capture.
+- **NEXT ACTIONS (RESUME POINT):** Phases 1–5.5 + **8A** done. Continue Phase 8, still
+  **do NOT do Phase 6 yet** (final demo/waveform/dashboard/schematic capture is the LAST
+  step, run ONCE on the feature-complete chip). Remaining Phase 8 build order:
+  **8D edge-win number (uses `comms_tx.msg_count`) → 8C joint fusion → regenerate schematic
+  (8G) → 8F TEDA**, then wire `comms_tx` into the top and run the final Phase 6 capture on
+  the canonical story-trace.
 
 ## 11. 🟣 EVALUATION FEEDBACK → DIFFERENTIATOR PIVOT (Phase 8 tier)
 _A judge reviewed the project and said it's **"too common — just automation, no unique

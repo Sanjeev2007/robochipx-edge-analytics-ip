@@ -219,7 +219,7 @@
 > flagged "TUNE" below. They may change after (a) the planned grill session and (b) the
 > judge's research papers land. Build the structure; leave the constants as named params.
 
-### Phase 8A — `comms_tx` (event-triggered caretaker communication)  ⭐ FLAGSHIP   Status: ⬜
+### Phase 8A — `comms_tx` (event-triggered caretaker communication)  ⭐ FLAGSHIP   Status: ✅ built + simulated
 - **Owner:** RTL lead. **Depends on:** Phase 4 (`output_analytics` events). **Interface:** `INTERFACES.md` §6.
 - **Goal:** the REMOTE notification channel — distinct from the continuous dashboard
   telemetry (§3). On an event edge it latches a **compact alert packet** and "transmits"

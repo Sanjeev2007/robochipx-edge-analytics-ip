@@ -108,6 +108,32 @@ Stress-tested the differentiator plan. Decisions locked (full record: `memory.md
   `vvp simulation.vvp | python3 …/edge_agri_dashboard.py` is ready to run on the Mac.
 
 ### Added
+- **Phase 8A — `comms_tx.v`** (⭐ the flagship differentiator — event-triggered caretaker
+  comms) — a **NEW standalone module; no existing `.v` was modified.** This is the chip's
+  **second output tier**: a sparse, machine-to-human alert channel (LoRa/GSM → caretaker's
+  phone), distinct from the continuous dashboard telemetry (§3). Built exactly to
+  `BUILD_PLAN.md` Phase 8A + `INTERFACES.md` §6.
+  - **Inputs** (from `output_analytics`): `clk`, `rst`, `in_valid`, `event_id[3:0]`,
+    `event_timestamp[31:0]`, `status[1:0]`, `crop_health[7:0]`.
+  - **Two-tier triage** — each `event_id` maps to `{notify?, severity, action_code}`:
+    human-needed events build a packet — WEED_DETECTED→INSPECT_WEED, SENSOR_ANOMALY→
+    CHECK_SENSOR, NUTRIENT_LOW→MANUAL_FERTILIZE, FROST_RISK→PROTECT_FROST, STATUS_CRITICAL→
+    RELOCATE_OR_REVIEW, PREDICT_DRY→PRE_IRRIGATE (codes per §6). Machine-handled PUMP_ON/
+    PUMP_OFF send NOTHING (the pump already acted); HEAT_STRESS has no caretaker action in
+    §6 so it also stays local. *This split is the concrete answer to "it's just automation":
+    automation acts, comms escalates only when a human is genuinely needed.*
+  - **`severity`** derived from BOTH `event_id` (per-event base: WEED/ANOMALY/FROST/CRITICAL
+    = CRITICAL, NUTRIENT_LOW = WARNING, PREDICT_DRY = INFO) AND `status` (escalates to
+    CRITICAL when `status==2`).
+  - On a qualifying **event edge**, asserts `msg_valid` for one cycle with the 64-bit
+    `alert_packet` packed MSB→LSB per §6: `{severity[4], event_code[4], action_code[4],
+    crop_health[8], reserved[12], event_timestamp[32]}`.
+  - **Rate limit** (`MSG_GAP`=8 valid cycles, §7 param): a down-counter blocks a REPEAT of
+    the SAME event until the gap elapses; a DIFFERENT event bypasses it — no alert spam.
+  - **`msg_count[15:0]`** running tally of transmitted packets (feeds the Phase 8D edge-win
+    math). All constants are named `parameter`s/`localparam`s — **no hard-coded literals.**
+  - All outputs **registered** (1-cycle latency, matches the pipeline); synthesizable,
+    `clk`/`rst`-driven, fully commented — per `CLAUDE.md`.
 - **Phase 5.5 — egress reconciliation to the dashboard's 17-field CSV**
   (`edge_analytics_tb.v` ONLY — **no `.v` module changed**): replaced the two-line
   `D`/`E` stream with the dashboard teammate's contract
@@ -283,6 +309,18 @@ Stress-tested the differentiator plan. Decisions locked (full record: `memory.md
   machine-health-monitor concept.
 
 ### Verified
+- **Phase 8A `comms_tx`** — compiled + ran the standalone module and its testbench
+  (`iverilog -o simulation.vvp comms_tx.v comms_tx_tb.v && vvp simulation.vvp`).
+  **RESULT: PASS (0 errors).** The story (WEED → PUMP_ON → NUTRIENT_LOW → NUTRIENT_LOW
+  rapid-repeat → FROST_RISK → PREDICT_DRY → HEAT_STRESS) produced **exactly 4 packets**:
+  - `sev=3 event=3 action=1 health=30 ts=100` (WEED → INSPECT_WEED, CRITICAL),
+  - `sev=2 event=4 action=3 health=60 ts=120` (NUTRIENT_LOW → MANUAL_FERTILIZE, WARNING),
+  - `sev=3 event=6 action=4 health=45 ts=140` (FROST_RISK → PROTECT_FROST, CRITICAL),
+  - `sev=1 event=9 action=6 health=80 ts=160` (PREDICT_DRY → PRE_IRRIGATE, INFO).
+  PUMP_ON and HEAT_STRESS transmitted **nothing** (Tier-1 / no caretaker action), and the
+  rapid NUTRIENT_LOW repeat was **suppressed by the MSG_GAP rate-limit**. `msg_count`
+  register = 4, matching the packets seen on the wire. Reserved field = 0; bit-packing
+  verified against §6 (e.g. `3311e00000000064` = sev3|ev3|ac1|health0x1E|resv0|ts0x64).
 - **Phase 5.5 CSV egress** — recompiled the full chip and ran the story trace
   (`iverilog -o simulation.vvp edge_analytics_top.v output_analytics.v
   analytics_engine.v smoothing_stage.v moving_avg.v sensor_collector.v
