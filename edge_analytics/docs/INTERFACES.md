@@ -206,11 +206,44 @@ Example: `24,26,60,25,39,60,25,1,0,0,0,0,0,0,1,76,0`
 | `RATE_THRESH` | 100 | weed = moisture dropped > 100 counts over `HIST_DEPTH` samples AND `not hot` |
 | anomaly | — | v1 rail-stuck: `avg_moisture == 0 \|\| avg_moisture == 4095`. **Phase 8F replaces/augments this with a self-tuning TEDA detector** (running μ+σ², Chebyshev eccentricity, divider-free) — see §7 `TEDA_*` params |
 
-**crop_health penalties** (start 255, subtract, clamp ≥0): dry −60, low_nutrient −50,
-hot −50, cold −50, weed −80, anomaly −40.
+**crop_health = INTERACTION-AWARE weighted score (Phase 8C).** Start 255, subtract the
+single-channel penalties, THEN subtract extra penalties when stresses CO-OCCUR (so a
+combined stress costs MORE than the sum of its parts), clamp ≥0. All weights are named
+`analytics_engine` parameters:
+| Weight | Value | Applies when |
+|---|---|---|
+| `PEN_DRY` | 60 | `dry` |
+| `PEN_NUT` | 50 | `low_nutrient` |
+| `PEN_HOT` | 50 | `hot` |
+| `PEN_COLD` | 50 | `cold` |
+| `PEN_WEED` | 80 | `weed` |
+| `PEN_ANOM` | 40 | `anomaly` |
+| `PEN_DRY_HOT` | 40 | `dry && hot` (drought + heat compound — extra on top of the two singles) |
+| `PEN_DRY_NUT` | 25 | `dry && low_nutrient` (dry roots can't take up NPK) |
+| `PEN_COMBINED` | 30 | `combined_dry_heat` (sub-threshold joint stress, below) |
 
-**status:** CRITICAL(2) if `weed | anomaly | cold | (dry+low_nutrient+hot+cold)>=2`;
-else WARNING(1) if exactly one mild condition; else SAFE(0).
+**Phase 8C joint / correlated fusion params + conditions** (named `analytics_engine`
+parameters; decisions depend on channel *combinations*, not each sensor alone):
+| Name | Value | Rule / meaning |
+|---|---|---|
+| `DRY_WARN` | 260 | "getting dry" band: `DRY_THRESH ≤ avg_moisture < DRY_WARN` (implies `!dry`) |
+| `HOT_WARN` | 360 | "getting warm" band: `HOT_WARN < avg_temp ≤ HOT_THRESH` (implies `!hot`) |
+| `FALL_THRESH` | 40 | moisture "falling" if `dropped` over `HIST_DEPTH` > this (gentler than `RATE_THRESH`) |
+| `HEALTH_CRISIS` | 120 | crop_health below this ⇒ plant already struggling |
+
+- `combined_dry_heat = dry_warn && hot_warn` — marginally dry AND marginally hot at once.
+  Each channel alone reads "fine" (no hard threshold crossed), so an OR-of-thresholds
+  detector misses it; only the JOINT view flags it (→ at least WARNING, `PEN_COMBINED`).
+- `real_heat_stress = hot && moisture_falling` — heat that arrives WITH active drying
+  (genuine stress, not a lone warm reading) → escalates status to CRITICAL.
+- `nutrient_crisis = low_nutrient && (crop_health < HEALTH_CRISIS)` — nutrient low while
+  the crop is already struggling (fused with the health score) → escalates to CRITICAL.
+
+**status (Phase 8C escalation):** CRITICAL(2) if `weed | anomaly | cold |
+(dry+low_nutrient+hot+cold)>=2 | real_heat_stress | nutrient_crisis`; else WARNING(1) if
+exactly one mild condition **or** `combined_dry_heat`; else SAFE(0). (Base ids/events and
+the single-channel condition outputs `dry/low_nutrient/hot/cold/weed/anomaly` are
+UNCHANGED — only the fusion of them into `crop_health`/`status` got smarter.)
 
 ---
 

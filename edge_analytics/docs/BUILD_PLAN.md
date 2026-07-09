@@ -270,7 +270,7 @@
 - **Done when:** the early-warning fires ahead of the actual dry threshold on a declining
   trace, and stays quiet otherwise.
 
-### Phase 8C — JOINT / CORRELATED fusion (make the RTL non-trivial)   Status: ⬜
+### Phase 8C — JOINT / CORRELATED fusion (make the RTL non-trivial)   Status: ✅ built + simulated
 - **Owner:** RTL lead. **Depends on:** Phase 3.  **Decision (grill):** the unique-
   implementation claim ("analytics in silicon, not software") only survives if the RTL
   is more than independent comparators. So upgrade fusion from **OR-of-thresholds** to a

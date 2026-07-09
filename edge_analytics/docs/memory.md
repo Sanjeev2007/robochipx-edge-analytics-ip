@@ -78,7 +78,7 @@ Three sensor channels for the demo: **soil moisture, nutrient (NPK), temperature
 | 5.5 | `edge_analytics_tb` egress | Testbench-only: emit the dashboard's 17-field CSV (header once + row/cycle) with count→display-unit scaling; RTL untouched | ✅ done + simulated |
 | 8A | `comms_tx` ⭐ | **Differentiator:** event-triggered alert packet (severity+action_code) to the remote caretaker; rate-limited; `msg_count`. The "beyond automation" answer | ✅ built + simulated |
 | 8B | `predictor` | Divider-free moisture-slope extrapolation → `predict_dry`/PREDICT_DRY early warning; reuses the weed `dropped` primitive | ⬜ planned |
-| 8C | JOINT fusion | Upgrade `analytics_engine` fusion from OR-of-thresholds → correlated/interaction-aware `crop_health` (NO humidity channel — keeps 3-ch dashboard contract) | ⬜ planned |
+| 8C | JOINT fusion | Upgrade `analytics_engine` fusion from OR-of-thresholds → correlated/interaction-aware `crop_health`+`status` (NO humidity channel — keeps 3-ch dashboard contract) | ✅ built + simulated |
 | 8D | edge-win metric | Testbench-only: samples-processed vs packets-transmitted → % data / radio-on saved | ⬜ planned |
 | 8F | `adaptive_anomaly` ⭐ | TEDA self-tuning anomaly: running μ+σ² per channel, Chebyshev eccentricity, divider-free (cross-mult). Replaces fixed rail-check. The researcher-impressive block | ✅ built + simulated |
 | 8G | visualization | 3 artifacts: gtkwave/EPWave waveforms + block diagram + **Vivado/Yosys synthesized schematic** ("show the chip") | ⬜ planned |
@@ -202,13 +202,37 @@ _(Last live snapshot. Update when the situation changes.)_
   - **NOT yet wired into `analytics_engine`** — standalone module + its own tb for now.
     Replacing the engine's fixed rail check with this `anomaly`/`anom_ch` is a later
     integration step (bundled with 8C + the Phase-6 re-capture).
-- **NEXT ACTIONS (RESUME POINT):** Phases 1–5.5 + **8A + 8F** done. Continue Phase 8, still
+- **✅ Phase 8C DONE (JOINT / correlated fusion — `analytics_engine` upgraded in place):**
+  modified `analytics_engine.v` ONLY; **port list UNCHANGED** (top still wires, 3 channels,
+  NO humidity, frozen 17-field contract intact). Fusion upgraded from OR-of-thresholds →
+  CORRELATED judgment:
+  - New correlated conditions (feed `status`/`crop_health`, no new ports/events):
+    `combined_dry_heat = dry_warn && hot_warn` (marginally dry AND marginally hot at once —
+    each channel alone is sub-threshold/"fine", so an OR-of-thresholds engine MISSES it);
+    `real_heat_stress = hot && moisture_falling` (heat WITH active drying → CRITICAL);
+    `nutrient_crisis = low_nutrient && crop_health<HEALTH_CRISIS` (→ CRITICAL).
+  - `crop_health` is now an **interaction-aware weighted score**: single penalties PLUS
+    extra co-occurrence penalties (`PEN_DRY_HOT`=40, `PEN_DRY_NUT`=25, `PEN_COMBINED`=30) so
+    combined stress costs MORE than the sum (e.g. dry+hot now 255−60−50−40=105, was 145).
+    All weights + bands (`DRY_WARN`=260, `HOT_WARN`=360, `FALL_THRESH`=40, `HEALTH_CRISIS`=120)
+    are named params, documented in `INTERFACES.md §5`. Still 0–255, clamped ≥0.
+  - **Base single-channel outputs (`dry/low_nutrient/hot/cold/weed/anomaly`) + all event
+    ids/priorities are UNCHANGED** — only their fusion into `crop_health`/`status` got smarter.
+  - **REGRESSION PASSES:** re-ran the EXISTING `analytics_engine_tb.v` — all 8 original
+    self-checks green (temp-compensated weed, dry-spell not-weed, heat, etc. unchanged).
+    **ADDED a JOINT/FUSION phase** (ts 4300–5000: moisture 240 / temp 380 / nutrient 300):
+    every base condition reads 0 (each channel individually "fine") yet `status`=WARNING(1)
+    and `crop_health`=225 — the combination is flagged that independent thresholds would miss.
+    **Compiled + ran: RESULT PASS (0 errors)** (`iverilog -o simulation.vvp analytics_engine.v
+    analytics_engine_tb.v && vvp simulation.vvp`). Full-chip re-compile (top + `edge_analytics_tb.v`)
+    also PASSES (0 alignment errors, valid 17-field CSV) — confirming the top still wires.
+- **NEXT ACTIONS (RESUME POINT):** Phases 1–5.5 + **8A + 8F + 8C** done. Continue Phase 8, still
   **do NOT do Phase 6 yet** (final capture is the LAST step, run ONCE on the
   feature-complete chip). **CORRECTED build order** (fixes a dependency: 8D needs
   `comms_tx.msg_count` over the real story trace → integration must come BEFORE 8D and
   before the schematic re-gen, so both show the complete chip):
   1. ✅ **8F TEDA** (`adaptive_anomaly.v`) — DONE, verified in isolation.
-  2. **8C joint fusion** (modify `analytics_engine` `crop_health` — careful, verified code).
+  2. ✅ **8C joint fusion** (`analytics_engine` `crop_health`+`status`) — DONE, regression + new fusion case pass.
   3. **INTEGRATION** — wire `analytics_engine`(+8C fusion, +8F anomaly) → `output_analytics`
      → `comms_tx` into `edge_analytics_top`.
   4. **8D edge-win number** (now `msg_count` is real over the story trace) — print-only in tb.

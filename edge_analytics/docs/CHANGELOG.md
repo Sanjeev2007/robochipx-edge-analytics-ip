@@ -108,6 +108,34 @@ Stress-tested the differentiator plan. Decisions locked (full record: `memory.md
   `vvp simulation.vvp | python3 …/edge_agri_dashboard.py` is ready to run on the Mac.
 
 ### Added
+- **Phase 8C — JOINT / CORRELATED fusion** (upgraded `analytics_engine.v` **in place** — the
+  ONLY `.v` touched; **port list UNCHANGED** so the top still wires; **no humidity channel**,
+  3 channels / frozen 17-field dashboard contract intact). Upgrades fusion from
+  OR-of-thresholds → a **correlated judgment** so the chip reasons about channel
+  *combinations*, not each sensor alone — the "analytics in silicon, not trivial comparators"
+  answer to the judge. Built exactly to `BUILD_PLAN.md` Phase 8C + `INTERFACES.md §5`.
+  - **New correlated conditions** (internal; drive `status`/`crop_health`, add NO new ports
+    or event ids): `combined_dry_heat = dry_warn && hot_warn` — moisture in the "getting dry"
+    band `[DRY_THRESH, DRY_WARN)` AND temp in the "getting warm" band `(HOT_WARN, HOT_THRESH]`
+    at the SAME time. By construction each channel is sub-threshold ("fine" to an
+    OR-of-thresholds engine), so only the JOINT view catches it (→ WARNING). Also
+    `real_heat_stress = hot && moisture_falling` (heat WITH active drying → CRITICAL) and
+    `nutrient_crisis = low_nutrient && crop_health<HEALTH_CRISIS` (→ CRITICAL).
+  - **`crop_health` is now an interaction-aware WEIGHTED score:** single-channel penalties
+    (`PEN_DRY`=60, `PEN_NUT`=50, `PEN_HOT`=50, `PEN_COLD`=50, `PEN_WEED`=80, `PEN_ANOM`=40)
+    PLUS extra co-occurrence penalties (`PEN_DRY_HOT`=40, `PEN_DRY_NUT`=25, `PEN_COMBINED`=30)
+    so combined stress costs MORE than the sum of its parts — e.g. `dry && hot` is now
+    255−60−50−40 = **105** (was 145). Still 0–255, clamped ≥0. New bands/params
+    (`DRY_WARN`=260, `HOT_WARN`=360, `FALL_THRESH`=40, `HEALTH_CRISIS`=120) and all weights
+    are **named `parameter`s** (no literals), documented in `INTERFACES.md §5`.
+  - **Base single-channel condition outputs (`dry/low_nutrient/hot/cold/weed/anomaly`) and the
+    event id/priority logic are UNCHANGED** — only the fusion of them into `crop_health`/`status`
+    got smarter. Synthesizable, `clk`/`rst`, fully commented — per `CLAUDE.md`.
+  - **`analytics_engine_tb.v`:** the EXISTING regression (HEALTHY → dry-spell → weed → heat,
+    8 self-checks) is kept and still PASSES; **added a JOINT/FUSION phase** (ts 4300–5000:
+    moisture 240 / temp 380 / nutrient 300 held steady) with 3 new self-checks proving genuine
+    fusion — every base condition stays 0 (each channel "fine") yet the combination is flagged
+    (`status`≠SAFE) and `crop_health` is penalised (< 255). NUM_SAMPLES 42 → 50.
 - **Phase 8F — `adaptive_anomaly.v`** (⭐ the researcher-impressive TEDA self-tuning anomaly
   detector) — a **NEW standalone module; no existing `.v` was modified.** Replaces the fixed
   rail-stuck anomaly check with a block that **learns each sensor's own normal on-chip and
@@ -334,6 +362,27 @@ Stress-tested the differentiator plan. Decisions locked (full record: `memory.md
   machine-health-monitor concept.
 
 ### Verified
+- **Phase 8C JOINT fusion** — recompiled + ran `analytics_engine` with the upgraded fusion and
+  the extended testbench (`iverilog -o simulation.vvp analytics_engine.v analytics_engine_tb.v
+  && vvp simulation.vvp`). **RESULT: PASS (0 errors).**
+  - **REGRESSION intact:** all 8 ORIGINAL self-checks green — HEALTHY clean (status SAFE,
+    health 255); `dry` fires in the slow dry-spell while `weed` does NOT; `weed` +
+    WEED_DETECTED(3) fire on the sharp normal-temp drop (ts 2600); `hot` + HEAT_STRESS(5) fire
+    in the heat phase; and the hot fast-drop does NOT read as `weed` (temperature compensation).
+    Base condition/event behaviour is byte-for-byte unchanged.
+  - **New fusion behaviour visible in the trace:** at ts 3600 `real_heat_stress` (hot + moisture
+    falling) escalated status to CRITICAL; at ts 3700+ the `dry && hot` interaction dropped
+    `crop_health` to **105** (255−60−50−`PEN_DRY_HOT`40) vs the old 145 — combined stress now
+    costs more than the sum.
+  - **New JOINT/FUSION self-checks (the genuine-fusion proof):** in the joint phase (ts
+    4300–5000, moisture 240 / temp 380 / nutrient 300) every base condition read 0 (each channel
+    individually "fine" — an OR-of-thresholds engine calls this SAFE/health 255), yet the chip
+    flagged `status`=WARNING(1) and `crop_health`=225 (`PEN_COMBINED`). All 3 new checks PASS:
+    (a) no single-channel threshold fired, (b) the combination WAS flagged, (c) crop_health was
+    penalised by the interaction. VCD (`dump.vcd`) dumped.
+  - **Top still wires:** re-compiled the FULL chip (`edge_analytics_top.v` + all sub-modules +
+    `edge_analytics_tb.v`) with the modified engine — **RESULT PASS (0 alignment errors)**, output
+    still valid 17-field CSV. The port list was unchanged, so integration is untouched.
 - **Phase 8F `adaptive_anomaly`** — compiled + ran the standalone module and its testbench
   (`iverilog -o simulation.vvp adaptive_anomaly.v adaptive_anomaly_tb.v && vvp
   simulation.vvp`). **RESULT: PASS (0 errors).** The testbench feeds moisture at **~600±12**

@@ -13,6 +13,15 @@
 //      HEAT_STRESS(5) event is stamped.  We ALSO drop moisture sharply here to
 //      prove the TEMPERATURE COMPENSATION: because it is hot, the fast drop reads
 //      as evaporation, so `weed` stays LOW (fusion, not a false weed alarm).
+//   5) JOINT/FUSION (Phase 8C) - moisture sits at 240 (ABOVE DRY_THRESH=200, so
+//      `dry`=0) AND temperature sits at 380 (BELOW HOT_THRESH=400, so `hot`=0),
+//      nutrient healthy.  EVERY single-channel threshold reads "fine" - an
+//      OR-of-thresholds engine would call this SAFE with full health 255.  But
+//      the two channels are BOTH in their warning bands at once, so the joint
+//      detector fires `combined_dry_heat` -> status leaves SAFE and crop_health
+//      is penalised.
+//         >>> KEY SELF-CHECK: a combination each channel-alone misses IS flagged
+//             (status != SAFE) while every base condition stays 0. <<<
 //
 // HOW IT'S WIRED:
 //   We drive the SMOOTHED values directly into analytics_engine (no need to chain
@@ -42,8 +51,11 @@ module analytics_engine_tb;
     localparam COLD_THRESH  = 100;
     localparam HIST_DEPTH   = 4;
     localparam RATE_THRESH  = 100;
+    // Phase 8C joint-fusion params (must match the DUT defaults).
+    localparam DRY_WARN     = 260;  // moisture in [200,260) = "getting dry" (not dry)
+    localparam HOT_WARN     = 360;  // temp in (360,400] = "getting warm" (not hot)
 
-    localparam NUM_SAMPLES  = 42;   // total smoothed sets we feed
+    localparam NUM_SAMPLES  = 50;   // total smoothed sets we feed (42 story + 8 joint)
 
     // ---- DUT stimulus / observation signals ---------------------------------
     reg                     clk = 0;
@@ -89,6 +101,8 @@ module analytics_engine_tb;
     //     WEED       k 24..29 ts 2500..3000   (sharp drop, temp normal)
     //     RECOVERY   k 30..33 ts 3100..3400   (watered back to 320)
     //     HEAT       k 34..41 ts 3500..4200   (temp > 400; moisture also drops)
+    //     JOINT      k 42..49 ts 4300..5000   (Phase 8C: moisture 240 + temp 380;
+    //                                          each fine alone, combination flagged)
     reg [DATA_WIDTH-1:0] m_stim [0:NUM_SAMPLES-1];
     reg [DATA_WIDTH-1:0] n_stim [0:NUM_SAMPLES-1];
     reg [DATA_WIDTH-1:0] t_stim [0:NUM_SAMPLES-1];
@@ -98,6 +112,7 @@ module analytics_engine_tb;
     localparam DRY_LO  = 900,  DRY_HI  = 2000;
     localparam WEED_LO = 2500, WEED_HI = 3000;
     localparam HEAT_LO = 3500, HEAT_HI = 4200;
+    localparam JOINT_LO = 4300, JOINT_HI = 5000;   // Phase 8C joint-fusion phase
 
     // ---- 1-cycle-delayed copies of the inputs (to align with reg'd outputs) --
     reg [DATA_WIDTH-1:0] avg_m_d, avg_n_d, avg_t_d;
@@ -118,6 +133,11 @@ module analytics_engine_tb;
     integer saw_weed_in_heat      = 0;   // MUST stay 0 (temperature compensation)
     // Healthy-phase observations
     integer saw_bad_in_healthy    = 0;   // MUST stay 0
+    // Joint/fusion-phase observations (Phase 8C)
+    integer saw_joint_flag        = 0;   // status left SAFE on the combination
+    integer saw_joint_single      = 0;   // any base condition fired (MUST stay 0)
+    integer saw_joint_healthpen   = 0;   // crop_health penalised below 255
+    integer joint_samples_seen    = 0;   // how many joint-phase samples we observed
 
     initial begin
         $dumpfile("dump.vcd");
@@ -156,6 +176,18 @@ module analytics_engine_tb;
         t_stim[35] = 410; t_stim[36] = 420; t_stim[37] = 430;
         t_stim[38] = 440; t_stim[39] = 440; t_stim[40] = 440; t_stim[41] = 440;
 
+        // JOINT / FUSION k 42..49 (Phase 8C): hold moisture at 240 and temp at
+        // 380.  moisture 240 is ABOVE DRY_THRESH(200) so `dry`=0, yet inside the
+        // "getting dry" band [200,260); temp 380 is BELOW HOT_THRESH(400) so
+        // `hot`=0, yet inside the "getting warm" band (360,400].  Held steady so
+        // there is no depletion trend (no weed / no moisture-falling) - the ONLY
+        // thing wrong is the CORRELATION of two marginal channels.  An
+        // OR-of-thresholds engine sees SAFE + health 255; the joint detector flags it.
+        for (k = 42; k <= 49; k = k + 1) begin
+            m_stim[k] = 240;   // > DRY_THRESH(200), < DRY_WARN(260)  -> dry=0, dry_warn=1
+            t_stim[k] = 380;   // <= HOT_THRESH(400), > HOT_WARN(360) -> hot=0, hot_warn=1
+        end                    // n_stim already 300 (healthy) for all k
+
         // ---- Init state -----------------------------------------------------
         in_valid_d = 0;
         rst = 1; in_valid = 0; avg_moisture = 0; avg_nutrient = 0; avg_temp = 0;
@@ -166,8 +198,10 @@ module analytics_engine_tb;
         $display("=====================================================================");
         $display(" analytics_engine: driving the story arc");
         $display("   HEALTHY -> slow DRY-SPELL -> WEED (sharp, normal temp) -> HEAT");
+        $display("   -> JOINT/FUSION (Phase 8C: marginal moisture + marginal temp)");
         $display(" (weed = temp-compensated depletion rate; a slow dry-spell must NOT");
-        $display("  read as a weed, and a hot fast-drop must NOT read as a weed)");
+        $display("  read as a weed, and a hot fast-drop must NOT read as a weed; the");
+        $display("  JOINT phase proves a combination each channel-alone misses is caught)");
         $display("=====================================================================");
         $display(" ts   | avgM avgN avgT | dry ln hot cld weed anom | st health | event");
         $display("---------------------------------------------------------------------");
@@ -242,6 +276,38 @@ module analytics_engine_tb;
         end else
             $display("   [PASS] hot fast-drop did NOT read as `weed`.  <== temp compensation");
 
+        // ---- Phase 8C JOINT / CORRELATED FUSION checks ----------------------
+        $display("   - - - Phase 8C: joint / correlated fusion - - -");
+
+        // Sanity: we actually observed the joint phase.
+        if (joint_samples_seen == 0) begin
+            $display("   [FAIL] joint/fusion phase produced no observed samples.");
+            errors = errors + 1;
+        end
+
+        // The genuine-fusion proof: every base condition stayed 0 (each channel
+        // individually "fine") yet the combination was flagged.
+        if (saw_joint_single != 0) begin
+            $display("   [FAIL] a single-channel threshold fired in the joint phase");
+            $display("          (the case is supposed to be sub-threshold on every channel).");
+            errors = errors + 1;
+        end else
+            $display("   [PASS] no single-channel threshold fired - each channel looks 'fine'.");
+
+        if (saw_joint_flag == 0) begin
+            $display("   [FAIL] the joint combination was NOT flagged (status stayed SAFE)");
+            $display("          - fusion failed to catch what OR-of-thresholds would miss.");
+            errors = errors + 1;
+        end else
+            $display("   [PASS] combination FLAGGED (status left SAFE) though every channel");
+            $display("          alone is fine.  <== genuine fusion; independent thresholds miss it");
+
+        if (saw_joint_healthpen == 0) begin
+            $display("   [FAIL] crop_health was NOT penalised by the interaction (stayed 255).");
+            errors = errors + 1;
+        end else
+            $display("   [PASS] crop_health penalised by the interaction (weighted fusion < 255).");
+
         $display("---------------------------------------------------------------------");
         if (errors == 0)
             $display("RESULT: PASS - all story-arc decisions correct; no false weed triggers.");
@@ -289,6 +355,18 @@ module analytics_engine_tb;
                     if (hot)               saw_hot_in_heat     = 1;
                     if (event_id == 4'd5)  saw_heatevt_in_heat = 1;
                     if (weed)              saw_weed_in_heat    = 1;   // must remain 0
+                end
+
+                // --- JOINT / FUSION phase (Phase 8C) ------------------------
+                // Each channel individually reads "fine" (all base conditions 0),
+                // but the COMBINATION must be flagged (status leaves SAFE) and
+                // crop_health penalised.  This is the case OR-of-thresholds misses.
+                if (ts_d >= JOINT_LO && ts_d <= JOINT_HI) begin
+                    joint_samples_seen = joint_samples_seen + 1;
+                    if (status != 0)      saw_joint_flag      = 1;   // fusion caught it
+                    if (dry || low_nutrient || hot || cold || weed || anomaly)
+                                          saw_joint_single    = 1;   // must remain 0
+                    if (crop_health < 255) saw_joint_healthpen = 1;  // interaction penalty
                 end
 
                 // --- Timestamp integrity: an event must stamp the sample's ts -
