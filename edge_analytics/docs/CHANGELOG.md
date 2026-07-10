@@ -5,6 +5,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### 📄 Docs
+- Added `presentation/PROJECT_OVERVIEW.md` — one-page, standalone explainer of the project
+  (what it is, hackathon context, detect→decide→act table, data flow, honest headline numbers).
+  Linked from `presentation/README.md`.
+
 ### 📌 AS-BUILT SNAPSHOT (latest — read this first)
 - **Demo:** `demo/mission_control.html` — 223-sample story, **6 caretaker packets ≈ ~97% fewer
   transmissions** (6 of 223). Tier-2 visual is a **Radio Transmitter** (silent-by-design, shows the

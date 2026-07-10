@@ -3,6 +3,8 @@
 Everything you need on the day is in this folder. Nothing to build — this is presentation only.
 
 ## Files here
+- **`PROJECT_OVERVIEW.md`** — read this first if you're new to the project. One page: what it
+  is, the hackathon context, how it's built, and the honest headline numbers.
 - **`JUDGE_CHEATSHEET.md`** — keep this open on your phone during Q&A. 30-sec pitch, the 5
   questions judges ask + your real answers, the "I don't know" script, the real numbers.
 - **`images/`** — all slide-ready PNGs in one place (Google Slides can't import SVG → use these):
