@@ -1003,5 +1003,11 @@ document.querySelectorAll(".tile .info").forEach(ic=>{
   ic.addEventListener("blur",hideTip);
 });
 
-render(0);
+// Deep-link a specific frame: mission_control.html?frame=63  (used for docs screenshots;
+// harmless otherwise). Falls back to frame 0. Clamped to the valid range.
+(function(){
+  const q = new URLSearchParams(location.search);
+  const f = q.has("frame") ? Math.max(0, Math.min(N-1, parseInt(q.get("frame"),10)||0)) : 0;
+  idx = f; render(f);
+})();
 </script>
