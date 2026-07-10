@@ -16,6 +16,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   packet) + `synthesis/waveform_pump_control.{svg,png}` (moisture smoothing→pump hysteresis) +
   `synthesis/fsm_pump.{svg,png}` (2-state hysteresis FSM). Rendered from the real `dump.vcd` by a
   pure-Python renderer (no gtkwave/matplotlib needed). Slides 4, 6, 7 restructured to use them.
+- **TX-saved % corrected 98 → 97** (6 of 223 = 97.3%). Was an integer-division bug
+  (`100 - floor(600/223)` = 98) in `edge_analytics_tb.v`, `mission_control.html`, and the data
+  file — all fixed; sim re-verified PASS/0 errors. **97% is the canonical honest number.**
+- **New `presentation/` folder** — self-contained day-of kit: `JUDGE_CHEATSHEET.md` (Q&A survival
+  guide), `README.md` (index + pre-flight checklist), `images/` (all 5 slide-ready PNGs gathered).
 - Older entries in this file are the chronological build log; where they say "phone" / "66 samples"
   / "98%", the AS-BUILT numbers above supersede them.
 
