@@ -239,8 +239,8 @@ C,214,CRITICAL,WEED_DETECTED,INSPECT_WEED,175,6
 # INTEGRATION SUMMARY (Tier-1 D-line + Tier-2 caretaker radio)
 #   samples processed on-chip : 223
 #   caretaker packets TX'd    : 6 (msg_count reg = 6)
-#   EDGE-WIN: dumb node = 223 transmissions, our chip = 6 -> 98% saved
-M,223,6,98
+#   EDGE-WIN: dumb node = 223 transmissions, our chip = 6 -> 97% saved
+M,223,6,97
 #   warm-up OK: 0 caretaker packets at ts=0 (false FROST suppressed)
 #   sparseness OK: 6 packets << 223 samples (Tier-2 radio is sparse)
 # FEATURE CHECKS (per story-phase window):

@@ -620,8 +620,8 @@ C,214,CRITICAL,WEED_DETECTED,INSPECT_WEED,175,6
 # INTEGRATION SUMMARY (Tier-1 D-line + Tier-2 caretaker radio)
 #   samples processed on-chip : 223
 #   caretaker packets TX'd    : 6 (msg_count reg = 6)
-#   EDGE-WIN: dumb node = 223 transmissions, our chip = 6 -> 98% saved
-M,223,6,98
+#   EDGE-WIN: dumb node = 223 transmissions, our chip = 6 -> 97% saved
+M,223,6,97
 #   warm-up OK: 0 caretaker packets at ts=0 (false FROST suppressed)
 #   sparseness OK: 6 packets << 223 samples (Tier-2 radio is sparse)
 # FEATURE CHECKS (per story-phase window):
@@ -635,7 +635,7 @@ M,223,6,98
 #   OK combined-stress caught by joint fusion (ts 171..192)
 #   OK TEDA sensor anomaly fired (ts 197..208)
 #---------------------------------------------------------
-# RESULT: PASS - D-line aligned (17 fields), warm-up gate silent at ts=0, caretaker radio TX'd 6 sparse packet(s) (98% saved), 0 errors.
+# RESULT: PASS - D-line aligned (17 fields), warm-up gate silent at ts=0, caretaker radio TX'd 6 sparse packet(s) (97% saved), 0 errors.
 #---------------------------------------------------------
 edge_analytics_tb.v:637: $finish called at 2330000 (1ps)
 `;
@@ -644,7 +644,7 @@ const FIELDS = ["ts","m_raw","n_raw","t_raw","m_avg","n_avg","t_avg","pump","dos
                 "a_nut","a_weed","a_heat","a_frost","a_anom","status","health","reloc"];
 const D = [];            // sample rows
 const C = {};            // ts -> caretaker packet
-let M = {samples:223,msg:6,pct:98};
+let M = {samples:223,msg:6,pct:97};
 for(const line of RAW.split("\n")){
   const s=line.trim();
   if(!s || s.startsWith("#") || s.startsWith("timestamp") || s.startsWith("VCD")) continue;
@@ -895,7 +895,7 @@ function render(idx){
   const dumb=idx+1;
   let ours=0; for(let i=0;i<=idx;i++) if(C[D[i].ts]) ours=Math.max(ours,C[D[i].ts].count);
   $("dumbN").textContent=dumb; $("oursN").textContent=ours;
-  const pct = dumb>0 ? (100 - Math.floor(100*ours/dumb)) : 0;
+  const pct = dumb>0 ? Math.floor(100*(dumb-ours)/dumb) : 0;
   $("pctSaved").textContent=pct+"%";
   $("barOurs").style.width=Math.max(1.5,(ours/dumb)*100)+"%";
 

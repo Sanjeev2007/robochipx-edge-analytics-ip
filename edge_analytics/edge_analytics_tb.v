@@ -542,9 +542,11 @@ module edge_analytics_tb;
         // all analytics on-chip and transmits only the sparse caretaker packets.
         //   dumb_node_transmissions = samples_processed   (one per valid sample)
         //   our_transmissions       = out_msg_count       (only the alerts)
-        //   pct_saved = (1 - our/dumb) * 100  == 100 - (100*our)/dumb   (integer)
+        //   pct_saved = (dumb - our)/dumb * 100   (integer floor; honest round-DOWN).
+        //   NB: do NOT write `100 - (100*our)/dumb` - integer division floors the small
+        //   term (600/223 -> 2) and inflates the saving to 98%; the correct value is 97%.
         if (samples_processed > 0)
-            pct_saved = 100 - (100 * out_msg_count) / samples_processed;
+            pct_saved = (100 * (samples_processed - out_msg_count)) / samples_processed;
         else
             pct_saved = 0;
 
