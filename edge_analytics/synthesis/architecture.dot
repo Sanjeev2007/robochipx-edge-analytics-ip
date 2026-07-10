@@ -25,7 +25,7 @@ digraph edge_analytics_ip {
 
     // --- outputs ---
     tier1   [label="TIER 1 — local actuation\npump · doser · alerts\n(on-device, instant)", fillcolor="#e8f5e9", color="#2e7d32"];
-    tier2   [label="TIER 2 — human alert\n1 tiny packet + ACTION\n→ caretaker (98% fewer TX)", fillcolor="#e8f5e9", color="#2e7d32"];
+    tier2   [label="TIER 2 — human alert\n1 tiny packet + ACTION\n→ caretaker (~97% fewer TX)", fillcolor="#e8f5e9", color="#2e7d32"];
 
     // --- flow ---
     sensors -> collect -> smooth;

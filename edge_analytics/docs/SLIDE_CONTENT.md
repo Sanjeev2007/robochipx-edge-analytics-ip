@@ -44,11 +44,12 @@
 ## Slide 4 — TECHNICAL APPROACH
 - **Architecture (image: `synthesis/architecture.png`):** sensors → `sensor_collector` → `smoothing_stage` (3× moving-average) → `analytics_engine` (fusion + temp-compensated weed) **+** `adaptive_anomaly` (TEDA) → `output_analytics` → **{Tier-1 actuators | Tier-2 `comms_tx` radio}**.
 - **Algorithms:** divider-free moving average (power-of-2 window); TEDA eccentricity `(x−μ)² > m²·V`; pump hysteresis; latency-aligned pipeline.
+- **State machine (image: `synthesis/fsm_pump.png`):** the pump is a 2-state Moore FSM with a **200…350 hysteresis band** — turns ON at avg_moisture<200, OFF only above 350, so it never chatters. *(Small inset — shows we designed real FSMs, not just combinational logic.)*
 - **Tools & flow:** Verilog RTL · Icarus Verilog + GTKWave (sim) · Yosys (synthesis) · Python (dashboard) · Git/GitHub. Design on Mac → GitHub.
 - **Testing:** a testbench per module + a top-level **223-sample story-trace** with self-checks (RESULT: PASS, 0 errors).
 - **Metrics (real):** **~97% fewer caretaker transmissions** (6 packets vs 223 samples); **~1,245 LUTs / 1,163 FFs / 3 DSP blocks → ~6% of an Artix-7 FPGA**.
 
-**Say:** "Every block has its own testbench, and a 223-sample story trace verifies the whole chip end-to-end. It synthesizes to about 6% of a low-end FPGA — the three DSP blocks are the anomaly-detector multipliers."
+**Say:** "Every block has its own testbench, and a 223-sample story trace verifies the whole chip end-to-end. The pump is a proper hysteresis state machine so it never oscillates. It synthesizes to about 6% of a low-end FPGA — the three DSP blocks are the anomaly-detector multipliers."
 
 ---
 
@@ -61,16 +62,28 @@
 ---
 
 ## Slide 6 — EXPECTED DELIVERABLE: Prototype / Model
-- **The Edge Analytics IP** — synthesizable Verilog, 8 modules, fully integrated.
-- **Synthesized proof (image: `synthesis/schematic_top_block.svg` small + `architecture.png`):** real netlist; **~1,245 LUTs · 1,163 FFs · 3 DSPs · ~6% of Artix-7**.
+**Layout as 3 columns — the NUMBERS + a WAVEFORM are the hero, the netlist is just a small "it's real" thumbnail.**
+
+- **① Utilization (big text — the hero):** **~1,245 LUTs · 1,163 FFs · 3 DSPs · ~6% of an Artix-7 (xc7a35t)**. The 3 DSPs = the TEDA anomaly multipliers.
+- **② Netlist thumbnail (small, captioned):** `synthesis/schematic_top_block.svg` shrunk — caption *"Yosys netlist — synthesizes to real gates."* Don't try to make it readable; it's proof-of-synthesis, not a diagram.
+- **③ Waveform (image: `synthesis/waveform_anomaly_radio.png`):** the cycle-by-cycle proof it actually runs — TEDA flags a channel → the Tier-2 radio transmits one 64-bit packet. *(This is the artifact chip judges expect — answers "did it run?" with a picture.)*
+- Caption line: *"Synthesizes to real gates AND verified cycle-by-cycle."*
 - (Honest: utilization from Yosys synthesis; timing/power would need Vivado P&R — not claimed.)
+
+**Say:** "It's not slideware — it synthesizes to about 6% of a real FPGA, and here's the waveform: the anomaly detector fires and the radio transmits exactly one packet, on the right clock edge."
 
 ---
 
 ## Slide 7 — EXPECTED DELIVERABLE: Documentation / Research
-- Full `docs/` suite: problem spec, frozen interface contract, build plan, feature showcase, changelog.
-- **Research-grounded:** `papers/` summaries + `CROP_PROFILE_DATA.md` (real FAO-56 / USDA / extension setpoints, cited).
-- Headline finding: *no surveyed system does the analytics in dedicated RTL/silicon* — that's our contribution.
+**Make the hero a screenshot of the crop-profile data TABLE (`docs/CROP_PROFILE_DATA.md`) — that's research made concrete. The judges never saw the docs; show them the grounding.**
+
+- **Literature reviewed → drove our design choices:**
+  - Lozoya et al. 2021 (*Sensors*) — event-triggered irrigation saves ~20% power → *this is why we do sparse Tier-2 transmission.*
+  - Angelov — TEDA (Typicality & Eccentricity) → *this is the self-tuning anomaly algorithm we put in silicon.*
+- **Agronomy grounded (show the table):** thresholds aren't guessed — moisture / NPK setpoints for **4 crops × 3 soils** come from **FAO-56** (crop coefficients / depletion) and **USDA NRCS** (soil water capacity), all cited in `CROP_PROFILE_DATA.md`.
+- **Headline finding:** *no surveyed system does the analytics in dedicated RTL/silicon* — that's our contribution.
+
+**Say:** "Our thresholds aren't made up — they're from FAO-56 and USDA soil data, one profile per crop and soil type. And the literature is where our two big ideas came from: event-triggered radio to save power, and TEDA to self-tune. Nobody in the survey put that analytics in actual silicon — we did."
 
 ---
 
@@ -109,7 +122,8 @@
 
 ### Grill Q&A (rehearse these)
 - **"It's too common / just automation."** → "Automation is only Tier-1. The novelty is on-chip *triage* — the chip decides *whether a human is needed* and self-tunes per field. That's ~97% less radio traffic (6 alerts vs 223 samples) and it's in dedicated silicon, which no surveyed system does."
-- **"Did it run on real hardware?"** → "It's simulation-proven and synthesizable — Yosys maps it to ~6% of an Artix-7, 3 DSP blocks for the anomaly math. Full board bring-up is next; the RTL is FPGA-ready."
+- **"Did it run on real hardware?"** → "It's simulation-proven and synthesizable — Yosys maps it to ~6% of an Artix-7, 3 DSP blocks for the anomaly math. *(point at the waveform)* Here's the actual cycle-by-cycle trace — the anomaly fires and the radio transmits one packet on the right clock edge. Full board bring-up is next; the RTL is FPGA-ready."
+- **"Show me it actually works at the signal level."** → *(Slide 6 waveform)* "This is the real VCD from the simulation. Left waveform: TEDA flags a channel, `alert_anomaly` goes high, `msg_valid` strobes for one cycle, `msg_count` increments, and the 64-bit packet changes. Second waveform: raw moisture is noisy, the moving average smooths it, and the pump engages with hysteresis — closed-loop, no human."
 - **"What's the clock speed / power?"** → "Those need place-and-route (Vivado), which we didn't run, so we don't quote a number. The design is small and fully pipelined, so timing closure on a modest FPGA isn't a concern." *(Never invent an MHz/mW figure.)*
 - **"Your dashboard streams every sample — where's the saving?"** → "Two different links. The dashboard is the cheap on-site/wired link. The ~97% applies to the long-range battery caretaker radio — that's the one that stays silent."
 - **"Is the data real?"** → "We drive the chip with directed test scenarios that model real field conditions — that's standard RTL verification. The agronomic setpoints (FAO-56, USDA) are real and cited."

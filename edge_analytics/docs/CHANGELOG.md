@@ -12,6 +12,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   entries below. 8 always-visible feature tiles + ACTIVE-ALERT banner + 5 charts; UI scaled +25%.
 - **Silicon:** Yosys synth = **~1,245 LUT / 1,163 FF / 3 DSP ≈ ~6% of Artix-7** (`synthesis/`).
   **No Fmax/power** (Yosys ≠ P&R). Slide content in `docs/SLIDE_CONTENT.md` reflects all of the above.
+- **Waveforms + FSM (8G part 2 — DONE):** `synthesis/waveform_anomaly_radio.{svg,png}` (TEDA→radio
+  packet) + `synthesis/waveform_pump_control.{svg,png}` (moisture smoothing→pump hysteresis) +
+  `synthesis/fsm_pump.{svg,png}` (2-state hysteresis FSM). Rendered from the real `dump.vcd` by a
+  pure-Python renderer (no gtkwave/matplotlib needed). Slides 4, 6, 7 restructured to use them.
 - Older entries in this file are the chronological build log; where they say "phone" / "66 samples"
   / "98%", the AS-BUILT numbers above supersede them.
 
@@ -29,7 +33,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   multipliers** (one per channel); 200 CARRY4 = analytics adders; 1,163 FFs = the pipeline.
 - ⚠️ **Honesty guardrail:** Yosys does synthesis, NOT place-and-route → **no Fmax/power figure**
   (would be fabricated). Fixed the stale "150 MHz / 40 mW" placeholders in `PRESENTATION_TASKS.md`
-  + `SYNTHESIS_TASKS.md` to the real utilization + this caveat. **Waveforms (8G part 2) still TODO.**
+  + `SYNTHESIS_TASKS.md` to the real utilization + this caveat. **Waveforms (8G part 2) — ✅ NOW DONE (see AS-BUILT snapshot).**
 
 ### Changed — Canonical story-trace expanded 66 → 223 samples (richer multi-incident demo)
 - **Modified ONLY `edge_analytics_tb.v`** (every RTL `.v` module stays frozen/untouched) and

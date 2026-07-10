@@ -1,0 +1,29 @@
+// Pump-hysteresis FSM (Moore) — output_analytics.v.
+// Render:
+//   dot -Tsvg synthesis/fsm_pump.dot -o synthesis/fsm_pump.svg
+//   dot -Tpng -Gdpi=150 synthesis/fsm_pump.dot -o synthesis/fsm_pump.png
+digraph pump_fsm {
+    rankdir=LR;
+    bgcolor="white";
+    graph [fontname="Helvetica", labelloc="t", fontsize=17,
+           label="Pump-hysteresis FSM (Moore)  —  the 200..350 band kills pump chatter"];
+    node  [fontname="Helvetica", fontsize=13, penwidth=1.8];
+    edge  [fontname="Helvetica", fontsize=11, color="#444444", penwidth=1.6];
+
+    // reset entry
+    start [shape=point, width=0.12, color="#2e7d32"];
+
+    // states (Moore: output is the state)
+    OFF [label="PUMP_OFF\n(pump_on = 0)", shape=circle, style="filled", fillcolor="#e8f5e9", color="#2e7d32", width=1.5, fixedsize=true];
+    ON  [label="PUMP_ON\n(pump_on = 1)",  shape=circle, style="filled", fillcolor="#e3f2fd", color="#1565c0", width=1.5, fixedsize=true];
+
+    start -> OFF [label=" rst", color="#2e7d32", fontcolor="#2e7d32"];
+
+    // transitions
+    OFF -> ON  [label="  dry\n  (avg_moisture < 200)", color="#1565c0", fontcolor="#1565c0"];
+    ON  -> OFF [label="  recovered\n  (avg_moisture > 350)", color="#c62828", fontcolor="#c62828"];
+
+    // hold-in-band self loops (the hysteresis)
+    OFF -> OFF [label="avg_moisture ≥ 200\n(hold OFF)"];
+    ON  -> ON  [label="avg_moisture ≤ 350\n(hold ON)"];
+}
