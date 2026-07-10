@@ -2,6 +2,7 @@
 
 > Fill each slide with the text below. **Real numbers only** (no fabricated Fmax/power).
 > Images live in `synthesis/` and `demo/`. Speaker notes = what to SAY out loud.
+> **Google Slides can't import SVG — insert the `.png` versions** (Insert → Image → Upload from computer).
 
 ---
 
@@ -65,7 +66,7 @@
 **Layout as 3 columns — the NUMBERS + a WAVEFORM are the hero, the netlist is just a small "it's real" thumbnail.**
 
 - **① Utilization (big text — the hero):** **~1,245 LUTs · 1,163 FFs · 3 DSPs · ~6% of an Artix-7 (xc7a35t)**. The 3 DSPs = the TEDA anomaly multipliers.
-- **② Netlist thumbnail (small, captioned):** `synthesis/schematic_top_block.svg` shrunk — caption *"Yosys netlist — synthesizes to real gates."* Don't try to make it readable; it's proof-of-synthesis, not a diagram.
+- **② Netlist thumbnail (small, captioned):** `synthesis/schematic_top_block_thumb.png` (pre-shrunk, 1100px, light) — caption *"Yosys netlist — synthesizes to real gates."* Don't try to make it readable; it's proof-of-synthesis, not a diagram.
 - **③ Waveform (image: `synthesis/waveform_anomaly_radio.png`):** the cycle-by-cycle proof it actually runs — TEDA flags a channel → the Tier-2 radio transmits one 64-bit packet. *(This is the artifact chip judges expect — answers "did it run?" with a picture.)*
 - Caption line: *"Synthesizes to real gates AND verified cycle-by-cycle."*
 - (Honest: utilization from Yosys synthesis; timing/power would need Vivado P&R — not claimed.)
