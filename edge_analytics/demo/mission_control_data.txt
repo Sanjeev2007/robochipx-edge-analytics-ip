@@ -254,6 +254,6 @@ M,223,6,97
 #   OK combined-stress caught by joint fusion (ts 171..192)
 #   OK TEDA sensor anomaly fired (ts 197..208)
 #---------------------------------------------------------
-# RESULT: PASS - D-line aligned (17 fields), warm-up gate silent at ts=0, caretaker radio TX'd 6 sparse packet(s) (98% saved), 0 errors.
+# RESULT: PASS - D-line aligned (17 fields), warm-up gate silent at ts=0, caretaker radio TX'd 6 sparse packet(s) (97% saved), 0 errors.
 #---------------------------------------------------------
 edge_analytics_tb.v:637: $finish called at 2330000 (1ps)
