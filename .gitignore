@@ -2,6 +2,10 @@
 *.vvp
 *.vcd
 
+# Python (dashboard demo helper — regenerated on run)
+__pycache__/
+*.pyc
+
 # macOS
 .DS_Store
 
